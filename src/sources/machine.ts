@@ -28,16 +28,8 @@ const WORKER_NAMES = [
 const TEST_RUNNER_RE =
   /(?:^|[\s/])(vitest|jest|mocha|ava|tap|pytest|phpunit|rspec|go test|cargo test|npm (?:run )?test|pnpm (?:run )?test|yarn (?:run )?test|bun (?:run )?test|deno test|gradle (?:run )?test|mvn (?:run )?test)(?:$|[\s])/;
 
-async function runText(file: string, args: string[]): Promise<string | null> {
-  const result = await runCapture(file, args);
-  if (!result.ok) return null;
-  const text = result.stdout.trim();
-  return text.length ? text : null;
-}
-
-/** Like runText, but merges stderr: some macOS tools report there instead. */
-async function runCombined(file: string, args: string[]): Promise<string | null> {
-  const result = await runCapture(file, args, { includeStderr: true });
+async function runText(file: string, args: string[], mergeStderr = false): Promise<string | null> {
+  const result = await runCapture(file, args, { includeStderr: mergeStderr });
   if (!result.ok) return null;
   const text = result.stdout.trim();
   return text.length ? text : null;
@@ -106,7 +98,8 @@ export function parseMemoryPressureFreePct(report: string): number | null {
 }
 
 async function darwinPressureFreePct(): Promise<number | null> {
-  const report = await runCombined("memory_pressure", ["-Q"]);
+  // memory_pressure reports on stderr on at least some macOS builds.
+  const report = await runText("memory_pressure", ["-Q"], true);
   if (!report) return null;
   return parseMemoryPressureFreePct(report);
 }
