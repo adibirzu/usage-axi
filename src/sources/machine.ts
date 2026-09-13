@@ -35,6 +35,14 @@ async function runText(file: string, args: string[]): Promise<string | null> {
   return text.length ? text : null;
 }
 
+/** Like runText, but merges stderr: some macOS tools report there instead. */
+async function runCombined(file: string, args: string[]): Promise<string | null> {
+  const result = await runCapture(file, args, { includeStderr: true });
+  if (!result.ok) return null;
+  const text = result.stdout.trim();
+  return text.length ? text : null;
+}
+
 function readProc(path: string): string | null {
   try {
     return readFileSync(path, "utf8");
@@ -72,36 +80,73 @@ async function load1(): Promise<number | null> {
   return null;
 }
 
-async function memory(): Promise<{ totalMb: number; freeMb: number } | null> {
+function roundPct(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+async function darwinTotalMb(): Promise<number | null> {
   const memsize = await runText("sysctl", ["-n", "hw.memsize"]);
   if (memsize && /^\d+$/.test(memsize) && Number(memsize) > 0) {
-    const totalMb = Math.round(Number(memsize) / 1024 / 1024);
-    const freeMb = await darwinFreeMb();
-    if (freeMb !== null) return { totalMb, freeMb };
-  }
-  const proc = readProc("/proc/meminfo");
-  if (proc) {
-    const total = proc.match(/^MemTotal:\s+(\d+)\s+kB/m);
-    const available = proc.match(/^MemAvailable:\s+(\d+)\s+kB/m);
-    if (total) {
-      const totalMb = Math.round(Number(total[1]) / 1024);
-      const freeMb = available ? Math.round(Number(available[1]) / 1024) : null;
-      if (freeMb !== null && totalMb > 0) return { totalMb, freeMb };
-    }
+    return Math.round(Number(memsize) / 1024 / 1024);
   }
   return null;
 }
 
-async function darwinFreeMb(): Promise<number | null> {
+/**
+ * macOS `memory_pressure -Q` prints "System-wide memory free percentage: N%".
+ * That is the free-memory reading the operator sees (it counts reclaimable
+ * inactive/purgeable pages), unlike raw `vm_stat` free pages which macOS keeps
+ * pinned near zero. fm-capacity-lib.sh's memory bar is calibrated to this.
+ */
+export function parseMemoryPressureFreePct(report: string): number | null {
+  const match = report.match(/System-wide memory free percentage:\s*(\d+)%/i);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return value >= 0 && value <= 100 ? value : null;
+}
+
+async function darwinPressureFreePct(): Promise<number | null> {
+  const report = await runCombined("memory_pressure", ["-Q"]);
+  if (!report) return null;
+  return parseMemoryPressureFreePct(report);
+}
+
+/** Fallback: vm_stat free+speculative pages as a percentage of installed RAM. */
+async function darwinVmStatFreePct(): Promise<number | null> {
   const vmStat = await runText("vm_stat", []);
   if (!vmStat) return null;
   const pageMatch = vmStat.match(/page size of (\d+)/);
   const freeMatch = vmStat.match(/^Pages free:\s+(\d+)/m);
   const specMatch = vmStat.match(/^Pages speculative:\s+(\d+)/m);
   if (!pageMatch || !freeMatch) return null;
-  const pageSize = Number(pageMatch[1]);
+  const totalMb = await darwinTotalMb();
+  if (!totalMb) return null;
   const pages = Number(freeMatch[1]) + (specMatch ? Number(specMatch[1]) : 0);
-  return Math.round((pages * pageSize) / 1024 / 1024);
+  const freeMb = (pages * Number(pageMatch[1])) / 1024 / 1024;
+  return roundPct((freeMb / totalMb) * 100);
+}
+
+/**
+ * Free memory as a percent. macOS reads the OS's own free percentage from
+ * `memory_pressure -Q` (falling back to vm_stat free+speculative). Linux keeps
+ * MemAvailable, the kernel's reclaimable-cache estimate - never MemFree.
+ */
+async function memoryFreePct(): Promise<number | null> {
+  if (process.platform === "darwin") {
+    const pressure = await darwinPressureFreePct();
+    if (pressure !== null) return pressure;
+    return darwinVmStatFreePct();
+  }
+  const proc = readProc("/proc/meminfo");
+  if (proc) {
+    const total = proc.match(/^MemTotal:\s+(\d+)\s+kB/m);
+    const available = proc.match(/^MemAvailable:\s+(\d+)\s+kB/m);
+    if (total && available) {
+      const totalKb = Number(total[1]);
+      if (totalKb > 0) return roundPct((Number(available[1]) / totalKb) * 100);
+    }
+  }
+  return null;
 }
 
 function parsePs(line: string): { pid: number; ppid: number; rss: number; comm: string } | null {
@@ -131,8 +176,17 @@ function argvFrom(line: string): { pid: number; args: string } | null {
   return { pid: Number(match[1]), args: match[2] };
 }
 
-/** Count live worker roots, matching firstmate's adapter-name doctrine. */
-function countAgents(commSnapshot: string | null, argvSnapshot: string | null): number | null {
+/**
+ * Count live worker roots, byte-for-byte the rule fm-capacity-lib.sh's
+ * `fm_capacity_fleet_totals` applies: a process is a root when its command
+ * basename equals a firstmate adapter name (claude, codex, opencode, pi,
+ * pi-signed, grok, kimi, cline, cursor-agent, copilot, muse, agy) or begins
+ * with that name followed by `-`, `_`, or `.`; when the basename is a bare
+ * `node`/`python`, its argv is searched for the adapter as a path or word
+ * component instead. Each matching process counts once. Kept exported and pure
+ * so the worker-root rule can be exercised against fixed ps snapshots.
+ */
+export function countWorkerRoots(commSnapshot: string | null, argvSnapshot: string | null): number | null {
   if (!commSnapshot) return null;
   const argv = new Map<number, string>();
   for (const line of (argvSnapshot ?? "").split("\n")) {
@@ -199,20 +253,18 @@ export async function measureMachine(): Promise<MachineCapacity> {
   const fixture = fixtureMachine();
   if (fixture) return fixture;
 
-  const [coreCount, load, mem] = await Promise.all([cores(), load1(), memory()]);
+  const [coreCount, load, freePct] = await Promise.all([cores(), load1(), memoryFreePct()]);
   const commSnapshot = await runText("ps", ["-A", "-o", "pid=,ppid=,rss=,comm="]);
   const argvSnapshot = await runText("ps", ["-A", "-o", "pid=,args="]);
 
   const loadPerCore =
     coreCount && load !== null ? Math.round((load / coreCount) * 1000) / 1000 : null;
-  const memoryFreePct =
-    mem && mem.totalMb > 0 ? Math.round((mem.freeMb / mem.totalMb) * 1000) / 10 : null;
 
   return {
-    agents: countAgents(commSnapshot, argvSnapshot),
+    agents: countWorkerRoots(commSnapshot, argvSnapshot),
     agentCeiling: agentCeiling(),
     loadPerCore,
-    memoryFreePct,
+    memoryFreePct: freePct,
     suiteSlotFree: suiteSlotFree(argvSnapshot),
   };
 }

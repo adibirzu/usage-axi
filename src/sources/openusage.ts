@@ -122,6 +122,19 @@ function resourceToWindow(resource: string, data: OpenUsageResource): QuotaWindo
   return window;
 }
 
+// A cold `openusage` refreshes each provider cache in turn and can take about
+// 23s on the architect's Mac. The previous 15s ceiling cut that read off mid
+// refresh, and the failure was then swallowed into a quota-axi-only document
+// with no visible error. Give a cold read ample time; tests may shorten it with
+// USAGE_AXI_OPENUSAGE_TIMEOUT_MS.
+export const DEFAULT_OPENUSAGE_TIMEOUT_MS = 90_000;
+
+function openUsageTimeoutMs(): number {
+  const raw = process.env["USAGE_AXI_OPENUSAGE_TIMEOUT_MS"];
+  if (raw && /^\d+$/.test(raw) && Number(raw) > 0) return Number(raw);
+  return DEFAULT_OPENUSAGE_TIMEOUT_MS;
+}
+
 /** Resolve the raw OpenUsage payload, from a fixture seam or the CLI. */
 async function loadPayload(force: boolean): Promise<{ ok: true; payload: OpenUsagePayload } | { ok: false; reason: string }> {
   const fixture = process.env["USAGE_AXI_OPENUSAGE_JSON"];
@@ -132,7 +145,9 @@ async function loadPayload(force: boolean): Promise<{ ok: true; payload: OpenUsa
     text = read;
   } else {
     const binary = process.env["USAGE_AXI_OPENUSAGE_BIN"] || "openusage";
-    const result = await runCapture(binary, force ? ["--force"] : []);
+    const result = await runCapture(binary, force ? ["--force"] : [], {
+      timeoutMs: openUsageTimeoutMs(),
+    });
     if (!result.ok) return { ok: false, reason: `openusage unavailable: ${result.reason}` };
     text = result.stdout;
   }

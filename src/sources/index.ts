@@ -92,8 +92,24 @@ function mergeProviders(
   }
   for (const provider of quotaAxi) {
     const existing = merged.get(provider.provider);
-    if (existing) adoptSemantics(existing, provider);
-    else merged.set(provider.provider, { ...provider, windows: [...provider.windows] });
+    if (!existing) {
+      merged.set(provider.provider, { ...provider, windows: [...provider.windows] });
+      continue;
+    }
+    // OpenUsage is primary wherever it has data, but a provider it reports with
+    // zero windows carries no quota at all (an empty or failed OpenUsage
+    // refresh). Letting that empty row shadow a live quota-axi provider is what
+    // left claude at windows=[] while quota-axi held five_hour/seven_day/
+    // model:fable. Fill the vacant provider from quota-axi instead of dropping
+    // the only usable windows.
+    if (existing.windows.length === 0 && provider.windows.length > 0) {
+      existing.windows = [...provider.windows];
+      existing.quotaSemantics = provider.quotaSemantics;
+      existing.source = provider.source;
+      if (!existing.plan && provider.plan) existing.plan = provider.plan;
+      continue;
+    }
+    adoptSemantics(existing, provider);
   }
 
   const opencode = merged.get("opencode");

@@ -19,7 +19,11 @@ output is the quota-axi `schemaVersion` envelope extended additively so
 - OpenUsage resource → quota-axi window id map: `src/sources/openusage.ts` (`RESOURCE_MAP`,
   `PROVIDER_ALIAS`). `antigravity` is presented as provider `agy`.
 - Merge rule (OpenUsage windows win; quota-axi may only supply semantics with no dangling
-  window join): `adoptSemantics` in `src/sources/index.ts`.
+  window join; a provider OpenUsage reports with zero windows is filled from quota-axi):
+  `mergeProviders`/`adoptSemantics` in `src/sources/index.ts`.
+- A cold `openusage` read gets a 90s ceiling (`DEFAULT_OPENUSAGE_TIMEOUT_MS` in
+  `src/sources/openusage.ts`). A failed adapter must show up in the additive `sources[]` in
+  `--json [--full]`, never silently downgrade the document.
 - Machine probes, ported from firstmate's `bin/fm-capacity-lib.sh` ideas but not importing it:
   `src/sources/machine.ts`.
 - CLI routing/default command: `normalizeArgv` in `src/cli.ts` (flag-first invocations route

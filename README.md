@@ -7,12 +7,17 @@ TOON. Built for routing agents: `usage-axi --json --full` is accepted unchanged 
 
 - **OpenUsage is primary.** It reads the [`openusage`](https://github.com/robinebers/openusage)
   CLI (honouring its five-minute cache; `--force` bypasses it) and maps every resource to a
-  quota-axi window id.
+  quota-axi window id. A cold refresh gets a 90s ceiling; a failed source is surfaced in the
+  additive `sources[]` instead of being swallowed into a thinner document.
 - **quota-axi is secondary.** It fills providers OpenUsage lacks and never overrides an
-  OpenUsage window, so a live Cursor Auto reading is never hidden by quota-axi's API `0%`.
+  OpenUsage window, so a live Cursor Auto reading is never hidden by quota-axi's API `0%`. A
+  provider OpenUsage reports with zero windows (an empty or failed refresh) is treated as
+  lacking and filled from quota-axi.
 - **opencode-catalog** splits `opencode models` into the `opencode-go` and `opencode` pools.
-- **machine** measures agent count, the agent ceiling, 1-minute load per core, free-memory
-  percent, and whether a test suite is running.
+- **machine** measures the worker-root agent count (`fm-capacity-lib.sh`'s adapter-basename /
+  argv rule), the agent ceiling, 1-minute load per core, free-memory percent (macOS
+  `memory_pressure -Q` free percent, else `vm_stat` free+speculative; Linux `MemAvailable`),
+  and whether a test suite is running.
 
 usage-axi is data only. It never routes, recommends, proxies, logs in, refreshes credentials,
 or writes anything but its own cache. It never prints or stores credentials or account
@@ -69,8 +74,10 @@ The default `--json` already carries the 15 fields `fm-dispatch-select.mjs` read
 (`generatedAt`, `providers[]`, `state.status`, `state.stale`, `state.error`,
 `windows[].id`, `windows[].percentRemaining`, and
 `quotaSemantics.effectiveAvailability[].{status,effectivePercentRemaining,selection.status,selection.spendPriority,scope,boundedBy,limitingWindowIds}`).
-`--full` adds `attempts` and full pool `models`. `machine{}`, `pools[]`, and `source` are
-additive and ignored by the selector.
+`--full` adds `attempts` and full pool `models`. `machine{}`, `pools[]`, `source`, and the
+`sources[]` provenance list are additive and ignored by the selector. `sources[]` carries the
+per-adapter status/detail so a degraded adapter is visible in the `--json --full` document
+itself.
 
 ### Window-id mapping (OpenUsage resource → quota-axi window id)
 
