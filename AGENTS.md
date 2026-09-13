@@ -27,10 +27,13 @@ output is the quota-axi `schemaVersion` envelope extended additively so
   never reach the selector contract: it is presented fresh with the flag preserved additively
   as `state.cacheStale`. A failed adapter must show up in the additive `sources[]` in
   `--json [--full]`, never silently downgrade the document.
-- Machine probes, ported from firstmate's `bin/fm-capacity-lib.sh` ideas but not importing it:
-  `src/sources/machine.ts`. `agents` uses that worker-root rule but excludes usage-axi's own
-  probe tree (`processTreePids`), so the concurrent `opencode models` read does not count as a
-  fleet agent.
+- Machine probes, ported from firstmate's `bin/fm-capacity-lib.sh` but not importing it:
+  `src/sources/machine.ts`. `readFleet` is the pure port of `fm_capacity_fleet_totals` and
+  `agents` is exactly that function's count (the ceiling's `across N agents` figure);
+  `machine.roots`/`--json` lists every counted pid, comm basename, and matched adapter so the
+  number is auditable. `measureMachine` excludes usage-axi's own probe tree
+  (`processTreePids`) and `collectUsage` takes the ps snapshot before spawning any probe, so a
+  concurrent `opencode models` read never inflates the count.
 - CLI routing/default command: `normalizeArgv` in `src/cli.ts` (flag-first invocations route
   to the implicit `quota` command).
 
@@ -51,8 +54,12 @@ output is the quota-axi `schemaVersion` envelope extended additively so
 captures in `test/fixtures/` and feed it to the vendored selector.
 
 - Test seams (environment): `USAGE_AXI_OPENUSAGE_JSON`, `USAGE_AXI_QUOTA_AXI_JSON`,
-  `USAGE_AXI_OPENCODE_MODELS`, `USAGE_AXI_MACHINE_JSON`, and the `*_BIN` overrides. These let
-  the suite run on a host where `openusage` is absent.
+  `USAGE_AXI_OPENCODE_MODELS`, `USAGE_AXI_MACHINE_JSON`, `USAGE_AXI_MACHINE_PS_COMM` /
+  `USAGE_AXI_MACHINE_PS_ARGV` (replay a two-file `ps` snapshot), and the `*_BIN` overrides.
+  These let the suite run on a host where `openusage` is absent.
+- `test/fixtures/machine/` holds real `ps` snapshots plus the `fm_capacity_fleet_totals`
+  golden count `test/sources/machine.test.ts` asserts `readFleet` reproduces. Its README
+  documents where a macOS capture (the 13-vs-10 case) goes: `mac-mini-<date>.{comm,argv}.ps`.
 - `test/support/fm-dispatch-select.mjs` is a pinned read-only copy of firstmate
   `origin/main`'s selector (MIT, Copyright (c) 2026 Kun Chen). The real selector on the Mac is
   the source of truth for parity; re-vendor only when the selector contract changes.

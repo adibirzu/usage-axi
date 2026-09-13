@@ -135,6 +135,20 @@ export type ProviderQuota = {
   attempts?: SourceAttempt[];
 };
 
+/**
+ * One process counted as a fleet agent root, so `machine.agents` is auditable.
+ * `comm` is the executable basename; `match` is the adapter name that matched
+ * (via the basename directly, or via the argv when the basename is a bare
+ * node/python interpreter). No argv content beyond the matched adapter name is
+ * emitted, so a worker's launch arguments never reach the report.
+ */
+export type AgentRoot = {
+  pid: number;
+  comm: string;
+  match: string;
+  via: "comm" | "argv";
+};
+
 /** Machine capacity, measured locally and never cached. */
 export type MachineCapacity = {
   agents: number | null;
@@ -142,6 +156,8 @@ export type MachineCapacity = {
   loadPerCore: number | null;
   memoryFreePct: number | null;
   suiteSlotFree: boolean | null;
+  /** Additive: the counted roots behind `agents`, in ps snapshot order. */
+  roots?: AgentRoot[];
 };
 
 export type UsageResponse = {
