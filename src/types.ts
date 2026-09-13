@@ -146,10 +146,6 @@ export type UsageResponse = {
   help?: string[];
 };
 
-export type QuotaContext = {
-  binPath: string;
-};
-
 /** A row in `usage-axi sources`: which adapter served what, and how fresh. */
 export type SourceReport = {
   source: SourceId;

@@ -179,7 +179,9 @@ export async function loadOpenUsage(force: boolean): Promise<OpenUsageLoad> {
       windows.push(window);
     }
     const stale = rawProvider.stale === true;
-    const status = rawProvider.error ? "error" : stale ? "stale" : "fresh";
+    let status: ProviderQuota["state"]["status"] = "fresh";
+    if (rawProvider.error) status = "error";
+    else if (stale) status = "stale";
     providers.push({
       provider,
       label: rawProvider.displayName ?? provider,

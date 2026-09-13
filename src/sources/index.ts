@@ -1,7 +1,6 @@
 import { parseEpochMs, nowIso } from "../lib/time.js";
 import { poolRemaining, usablePercent } from "../semantics.js";
 import type {
-  MachineCapacity,
   ProviderQuota,
   QuotaSemantics,
   SourceReport,
@@ -187,8 +186,4 @@ export async function collectUsage(options: CollectOptions): Promise<CollectResu
     machine,
   };
   return { response, reports };
-}
-
-export function machineOnly(machine: MachineCapacity): UsageResponse {
-  return { generatedAt: nowIso(), schemaVersion: 5, providers: [], machine };
 }

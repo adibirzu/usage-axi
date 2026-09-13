@@ -173,8 +173,6 @@ export function doctorJson(checks: DoctorCheck[]): Record<string, unknown> {
   return { checks };
 }
 
-export type Renderable = string | Record<string, unknown>;
-
 /** JSON shape: the quota-axi contract, minus identity, optionally full. */
 export function toJsonObject(response: UsageResponse, full: boolean): Record<string, unknown> {
   const providers = response.providers.map((provider) => jsonProvider(provider, full));

@@ -8,10 +8,3 @@ export function parseEpochMs(value: unknown): number | null {
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
-
-/** Age in seconds of an ISO timestamp relative to `nowMs`. */
-export function ageSeconds(value: unknown, nowMs: number): number | null {
-  const epoch = parseEpochMs(value);
-  if (epoch === null) return null;
-  return (nowMs - epoch) / 1000;
-}
