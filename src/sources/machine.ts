@@ -170,16 +170,52 @@ function argvFrom(line: string): { pid: number; args: string } | null {
 }
 
 /**
- * Count live worker roots, byte-for-byte the rule fm-capacity-lib.sh's
- * `fm_capacity_fleet_totals` applies: a process is a root when its command
- * basename equals a firstmate adapter name (claude, codex, opencode, pi,
- * pi-signed, grok, kimi, cline, cursor-agent, copilot, muse, agy) or begins
- * with that name followed by `-`, `_`, or `.`; when the basename is a bare
- * `node`/`python`, its argv is searched for the adapter as a path or word
- * component instead. Each matching process counts once. Kept exported and pure
- * so the worker-root rule can be exercised against fixed ps snapshots.
+ * Every pid in the process tree rooted at `rootPid`, from a comm snapshot
+ * (`<pid> <ppid> <rss> <comm>` lines). Used to exclude usage-axi's own probe
+ * processes from the agent count: `measureMachine` runs concurrently with the
+ * `opencode models` catalog read, so without this the catalog's transient
+ * `opencode` process counts as a fleet agent and inflates `agents` above what
+ * `fm-capacity-lib.sh` (which spawns no probes) reports for the same instant.
  */
-export function countWorkerRoots(commSnapshot: string | null, argvSnapshot: string | null): number | null {
+export function processTreePids(commSnapshot: string | null, rootPid: number): Set<number> {
+  const tree = new Set<number>([rootPid]);
+  if (!commSnapshot) return tree;
+  const children = new Map<number, number[]>();
+  for (const line of commSnapshot.split("\n")) {
+    const parsed = parsePs(line);
+    if (!parsed) continue;
+    const siblings = children.get(parsed.ppid);
+    if (siblings) siblings.push(parsed.pid);
+    else children.set(parsed.ppid, [parsed.pid]);
+  }
+  const stack = [rootPid];
+  while (stack.length) {
+    const parent = stack.pop() as number;
+    for (const child of children.get(parent) ?? []) {
+      if (tree.has(child)) continue;
+      tree.add(child);
+      stack.push(child);
+    }
+  }
+  return tree;
+}
+
+/**
+ * Count live worker roots, matching firstmate's adapter-name doctrine. A
+ * process is a root when its command basename equals a firstmate adapter name
+ * (claude, codex, opencode, pi, pi-signed, grok, kimi, cline, cursor-agent,
+ * copilot, muse, agy) or begins with that name followed by `-`, `_`, or `.`;
+ * when the basename is a bare `node`/`python`, its argv is searched for the
+ * adapter as a path or word component instead. Each matching process counts
+ * once. `excludePids` drops this process's own probe tree (transients), so the
+ * `opencode models` catalog read does not count as a fleet agent. Kept exported
+ * and pure so the worker-root rule can be exercised against fixed ps snapshots.
+ */
+export function countWorkerRoots(
+  commSnapshot: string | null,
+  argvSnapshot: string | null,
+  excludePids: ReadonlySet<number> = new Set(),
+): number | null {
   if (!commSnapshot) return null;
   const argv = new Map<number, string>();
   for (const line of (argvSnapshot ?? "").split("\n")) {
@@ -189,7 +225,7 @@ export function countWorkerRoots(commSnapshot: string | null, argvSnapshot: stri
   let agents = 0;
   for (const line of commSnapshot.split("\n")) {
     const parsed = parsePs(line);
-    if (!parsed) continue;
+    if (!parsed || excludePids.has(parsed.pid)) continue;
     const base = baseName(parsed.comm);
     let hit = namesWorker(base);
     if (!hit && (base.startsWith("node") || base.startsWith("python"))) {
@@ -254,7 +290,7 @@ export async function measureMachine(): Promise<MachineCapacity> {
     coreCount && load !== null ? Math.round((load / coreCount) * 1000) / 1000 : null;
 
   return {
-    agents: countWorkerRoots(commSnapshot, argvSnapshot),
+    agents: countWorkerRoots(commSnapshot, argvSnapshot, processTreePids(commSnapshot, process.pid)),
     agentCeiling: agentCeiling(),
     loadPerCore,
     memoryFreePct: freePct,

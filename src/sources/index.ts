@@ -155,7 +155,7 @@ export async function collectUsage(options: CollectOptions): Promise<CollectResu
           source: "openusage",
           status: "available",
           detail: `providers=${openusage.providers.length}`,
-          stale: openusage.providers.every((provider) => provider.state.stale),
+          stale: openusage.providers.some((provider) => provider.state.cacheStale === true),
         }
       : { source: "openusage", status: "unavailable", detail: openusage.reason },
   );

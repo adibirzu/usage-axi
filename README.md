@@ -7,17 +7,18 @@ TOON. Built for routing agents: `usage-axi --json --full` is accepted unchanged 
 
 - **OpenUsage is primary.** It reads the [`openusage`](https://github.com/robinebers/openusage)
   CLI (honouring its five-minute cache; `--force` bypasses it) and maps every resource to a
-  quota-axi window id. A cold refresh gets a 90s ceiling; a failed source is surfaced in the
-  additive `sources[]` instead of being swallowed into a thinner document.
+  quota-axi window id. The shared cache is tried first, so a fresh cache is instant; a stale-cache
+  refresh gets a 180s ceiling (`USAGE_AXI_OPENUSAGE_TIMEOUT_MS` overrides). A failed source is
+  surfaced in the additive `sources[]` instead of being swallowed into a thinner document.
 - **quota-axi is secondary.** It fills providers OpenUsage lacks and never overrides an
   OpenUsage window, so a live Cursor Auto reading is never hidden by quota-axi's API `0%`. A
   provider OpenUsage reports with zero windows (an empty or failed refresh) is treated as
   lacking and filled from quota-axi.
 - **opencode-catalog** splits `opencode models` into the `opencode-go` and `opencode` pools.
 - **machine** measures the worker-root agent count (`fm-capacity-lib.sh`'s adapter-basename /
-  argv rule), the agent ceiling, 1-minute load per core, free-memory percent (macOS
-  `memory_pressure -Q` free percent, else `vm_stat` free+speculative; Linux `MemAvailable`),
-  and whether a test suite is running.
+  argv rule, excluding usage-axi's own transient probe processes), the agent ceiling, 1-minute load
+  per core, free-memory percent (macOS `memory_pressure -Q` free percent, else `vm_stat`
+  free+speculative; Linux `MemAvailable`), and whether a test suite is running.
 
 usage-axi is data only. It never routes, recommends, proxies, logs in, refreshes credentials,
 or writes anything but its own cache. It never prints or stores credentials or account
@@ -47,6 +48,12 @@ usage-axi update [--check]                  # self-update
 
 Flags: `--provider <list>`, `--json`, `--full`, `--force`, `--help`, `-v/--version`.
 Exit codes: `0` success, `1` no provider returned data, `2` usage error.
+
+### Environment
+
+- `USAGE_AXI_OPENUSAGE_TIMEOUT_MS` - ceiling for a cold `openusage` read, in milliseconds.
+  Defaults to `180000`. The default read is cache-first (no `--force`); this ceiling bounds the
+  slow path where OpenUsage refreshes a stale cache.
 
 ## Output contract
 

@@ -136,7 +136,7 @@ export function renderMachineToon(machine: MachineCapacity, binPath: string): st
     encode({ machine }),
     renderHelp([
       "machine is measured live and never cached",
-      "agents counts worker roots with fm-capacity-lib.sh's adapter-basename/argv rule; each root once",
+      "agents counts worker roots with fm-capacity-lib.sh's adapter-basename/argv rule; each root once, excluding usage-axi's own transient probes",
       "memoryFreePct is macOS memory_pressure -Q free percent, else vm_stat free+speculative; Linux MemAvailable",
       "suiteSlotFree is true when no test suite is running",
       "Pass `--json` for the machine object without TOON framing",

@@ -1,4 +1,4 @@
-import { chmodSync, writeFileSync } from "node:fs";
+import { chmodSync, readFileSync, writeFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_OPENUSAGE_TIMEOUT_MS, loadOpenUsage } from "../../src/sources/openusage.js";
 import { clearUsageEnv, fixture, tempDir } from "../support/harness.js";
@@ -68,8 +68,77 @@ describe("openusage adapter", () => {
     expect(load.ok).toBe(false);
   });
 
-  it("gives a cold openusage read a ceiling well above the old 15s default", () => {
-    expect(DEFAULT_OPENUSAGE_TIMEOUT_MS).toBeGreaterThanOrEqual(90_000);
+  it("gives a cold openusage read a ceiling well above the measured 82s refresh", () => {
+    expect(DEFAULT_OPENUSAGE_TIMEOUT_MS).toBeGreaterThanOrEqual(180_000);
+  });
+
+  it("tries OpenUsage's shared cache first and only --force bypasses it", async () => {
+    const { dir, cleanup } = tempDir("usage-axi-openusage-cache-");
+    try {
+      const log = `${dir}/args.txt`;
+      const stub = `${dir}/openusage-args.sh`;
+      const payload = JSON.stringify({
+        generatedAt: "2026-09-13T14:21:24.131Z",
+        providers: {},
+      });
+      writeFileSync(stub, `#!/bin/sh\nprintf '%s' "$*" > '${log}'\nprintf '%s' '${payload}'\n`, {
+        mode: 0o755,
+      });
+      chmodSync(stub, 0o755);
+      delete process.env["USAGE_AXI_OPENUSAGE_JSON"];
+      process.env["USAGE_AXI_OPENUSAGE_BIN"] = stub;
+
+      await loadOpenUsage(false);
+      expect(readFileSync(log, "utf8")).not.toContain("--force");
+
+      await loadOpenUsage(true);
+      expect(readFileSync(log, "utf8")).toContain("--force");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("presents cache-expired OpenUsage windows as fresh and keeps the cache flag additive", async () => {
+    const { dir, cleanup } = tempDir("usage-axi-openusage-stale-");
+    try {
+      const payload = JSON.stringify({
+        generatedAt: "2026-09-13T14:53:18.784Z",
+        providers: {
+          grok: {
+            displayName: "Grok",
+            stale: true,
+            fetchedAt: "2026-09-13T14:48:15.000Z",
+            resources: {
+              weekly: {
+                kind: "consumption",
+                unit: "percent",
+                limit: 100,
+                remaining: 100,
+                used: 0,
+                utilization: 0,
+                resetsAt: "2026-09-15T00:00:00.000Z",
+                windowSeconds: 604800,
+              },
+            },
+          },
+        },
+      });
+      const path = `${dir}/openusage-stale.json`;
+      writeFileSync(path, payload);
+      process.env["USAGE_AXI_OPENUSAGE_JSON"] = path;
+
+      const load = await loadOpenUsage(false);
+      expect(load.ok).toBe(true);
+      if (!load.ok) return;
+      const grok = load.providers.find((provider) => provider.provider === "grok");
+      // The selector vetoes state.stale, so a cache-expired reading must still
+      // present as fresh telemetry; the upstream flag survives additively.
+      expect(grok?.state.status).toBe("fresh");
+      expect(grok?.state.stale).toBe(false);
+      expect(grok?.state.cacheStale).toBe(true);
+    } finally {
+      cleanup();
+    }
   });
 
   it(

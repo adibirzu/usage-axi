@@ -66,7 +66,8 @@ description:
   agents counts worker roots with fm-capacity-lib.sh's rule: a process whose command basename is a
   firstmate adapter (claude, codex, opencode, pi, pi-signed, grok, kimi, cline, cursor-agent,
   copilot, muse, agy), or begins with one followed by -/_/., or - for a bare node/python - whose
-  argv names an adapter; each matching process counts once.
+  argv names an adapter; each matching process counts once. usage-axi's own transient probes (the
+  opencode models catalog read) are excluded, so the count matches fm-capacity.sh on the same host.
   memoryFreePct is the OS free-memory reading: macOS memory_pressure -Q free percent (falling back
   to vm_stat free+speculative), Linux MemAvailable as a share of MemTotal.
 flags[2]:

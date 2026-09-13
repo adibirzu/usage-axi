@@ -3,6 +3,7 @@ import {
   countWorkerRoots,
   measureMachine,
   parseMemoryPressureFreePct,
+  processTreePids,
 } from "../../src/sources/machine.js";
 import { MACHINE_FIXTURE, clearUsageEnv, tempDir, writeJson } from "../support/harness.js";
 
@@ -65,6 +66,32 @@ describe("worker-root agent counting", () => {
 
   it("returns null when the comm snapshot could not be read", () => {
     expect(countWorkerRoots(null, "  1 node /x/opencode")).toBeNull();
+  });
+
+  it("excludes usage-axi's own transient probe tree from the fleet count", () => {
+    // usage-axi's `opencode models` catalog read runs concurrently with the ps
+    // scan. It is a child of this process, so it must not count as an agent;
+    // an unrelated opencode still does.
+    const self = process.pid;
+    const comm = [
+      `${self} 1 1000 node`,
+      `${self + 1} ${self} 1000 opencode`,
+      `${self + 2} ${self + 1} 1000 node`,
+      `424242 1 1000 opencode`,
+    ].join("\n");
+    const argv = [
+      `${self} node /x/usage-axi.js`,
+      `${self + 2} node /x/opencode/server.js`,
+    ].join("\n");
+
+    const tree = processTreePids(comm, self);
+    expect(tree.has(self + 1)).toBe(true);
+    expect(tree.has(self + 2)).toBe(true);
+    expect(tree.has(424242)).toBe(false);
+    // Without the exclusion the probe inflates the count; with it the unrelated
+    // opencode remains.
+    expect(countWorkerRoots(comm, argv)).toBe(3);
+    expect(countWorkerRoots(comm, argv, tree)).toBe(1);
   });
 });
 
