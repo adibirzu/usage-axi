@@ -3,7 +3,8 @@
 AXI CLI that reports **one truthful picture of every subscription, free pool, and local
 machine capacity** as [quota-axi](https://github.com/kunchenguid/quota-axi)-compatible JSON or
 TOON. Built for routing agents: `usage-axi --json --full` is accepted unchanged by
-`fm-dispatch-select.mjs select --quota-json`.
+`fm-dispatch-select.mjs select --quota-json`. It follows the AXI design principles for
+agent-ergonomic CLIs - see [axi.md](https://axi.md/).
 
 - **OpenUsage is primary.** It reads the [`openusage`](https://github.com/robinebers/openusage)
   CLI (honouring its five-minute cache; `--force` bypasses it) and maps every resource to a
@@ -18,7 +19,10 @@ TOON. Built for routing agents: `usage-axi --json --full` is accepted unchanged 
 - **machine** measures the worker-root agent count (`fm-capacity-lib.sh`'s adapter-basename /
   argv rule, excluding usage-axi's own transient probe processes), the agent ceiling, 1-minute load
   per core, free-memory percent (macOS `memory_pressure -Q` free percent, else `vm_stat`
-  free+speculative; Linux `MemAvailable`), and whether a test suite is running.
+  free+speculative; Linux `MemAvailable`), and whether a test suite is running. `machine --json`
+  lists every counted worker root in `roots[]` (pid, `comm` basename, matched adapter, and whether
+  it matched via `comm` or `argv`), so `agents` is auditable and matches `fm-capacity.sh` on the
+  same host. No launch arguments beyond the matched adapter name are emitted.
 
 usage-axi is data only. It never routes, recommends, proxies, logs in, refreshes credentials,
 or writes anything but its own cache. It never prints or stores credentials or account
@@ -26,11 +30,17 @@ identity: only percentages, window bounds, reset times, and pool model ids.
 
 ## Install
 
+Not on npm yet - install from git `main`:
+
 ```sh
-npx -y usage-axi
-npm install -g usage-axi
+git clone https://github.com/adibirzu/usage-axi
+cd usage-axi
+npm ci
+npm run build
+npm install -g --prefix ~/.local .
 ```
 
+This puts the `usage-axi` binary in `~/.local/bin`; keep that directory on `PATH`.
 Requires Node 22+. No native dependencies; ARM64-clean.
 
 ## Commands
@@ -101,8 +111,8 @@ itself.
 ## Development
 
 ```sh
-npm install
-npm test          # vitest: source units + the U1-U12 selector acceptance fixtures
+npm ci
+npm test          # vitest: source units + the U1-U17 selector acceptance fixtures
 npm run lint
 npm run typecheck
 npm run build     # dist/bin/usage-axi.js
