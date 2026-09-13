@@ -122,6 +122,22 @@ function resourceToWindow(resource: string, data: OpenUsageResource): QuotaWindo
   return window;
 }
 
+// How long a cold `openusage` read may take. The CLI is already cache-first:
+// without `--force` it serves its shared five-minute cache and only refreshes
+// entries that are missing or past that TTL. A stale-cache refresh is the slow
+// path - the architect measured 82s for seven providers on the Mac - so the
+// ceiling must sit well above it or the read is killed mid-refresh and the
+// failure is swallowed into a thinner document. 180s is the measured slow path
+// with headroom; tests and operators may override it with
+// USAGE_AXI_OPENUSAGE_TIMEOUT_MS (a positive integer number of milliseconds).
+export const DEFAULT_OPENUSAGE_TIMEOUT_MS = 180_000;
+
+function openUsageTimeoutMs(): number {
+  const raw = process.env["USAGE_AXI_OPENUSAGE_TIMEOUT_MS"];
+  if (raw && /^\d+$/.test(raw) && Number(raw) > 0) return Number(raw);
+  return DEFAULT_OPENUSAGE_TIMEOUT_MS;
+}
+
 /** Resolve the raw OpenUsage payload, from a fixture seam or the CLI. */
 async function loadPayload(force: boolean): Promise<{ ok: true; payload: OpenUsagePayload } | { ok: false; reason: string }> {
   const fixture = process.env["USAGE_AXI_OPENUSAGE_JSON"];
@@ -132,7 +148,11 @@ async function loadPayload(force: boolean): Promise<{ ok: true; payload: OpenUsa
     text = read;
   } else {
     const binary = process.env["USAGE_AXI_OPENUSAGE_BIN"] || "openusage";
-    const result = await runCapture(binary, force ? ["--force"] : []);
+    // Cache first: no `--force`, so OpenUsage serves its shared five-minute
+    // cache instantly when fresh and only pays the slow refresh when stale.
+    const result = await runCapture(binary, force ? ["--force"] : [], {
+      timeoutMs: openUsageTimeoutMs(),
+    });
     if (!result.ok) return { ok: false, reason: `openusage unavailable: ${result.reason}` };
     text = result.stdout;
   }
@@ -178,10 +198,15 @@ export async function loadOpenUsage(force: boolean): Promise<OpenUsageLoad> {
       }
       windows.push(window);
     }
-    const stale = rawProvider.stale === true;
-    let status: ProviderQuota["state"]["status"] = "fresh";
-    if (rawProvider.error) status = "error";
-    else if (stale) status = "stale";
+    // OpenUsage's own `stale` is a cache-TTL flag (`generatedAt >=
+    // refreshedAt + 5min`), not a statement that the limits are unusable. The
+    // selector vetoes any provider whose `state.stale` is true, so copying that
+    // flag onto the contract made a real, cache-expired grok reading refuse
+    // while the equivalent fresh quota-axi grok was accepted. Present the
+    // windows as live telemetry (fresh, stale false) and retain the upstream
+    // cache flag additively as `cacheStale`, which the selector ignores.
+    const cacheStale = rawProvider.stale === true;
+    const status: ProviderQuota["state"]["status"] = rawProvider.error ? "error" : "fresh";
     providers.push({
       provider,
       label: rawProvider.displayName ?? provider,
@@ -191,7 +216,8 @@ export async function loadOpenUsage(force: boolean): Promise<OpenUsageLoad> {
       quotaSemantics: synthesizeSemantics(provider, windows),
       state: {
         status,
-        stale,
+        stale: false,
+        ...(cacheStale ? { cacheStale: true } : {}),
         ...(rawProvider.fetchedAt ? { refreshedAt: rawProvider.fetchedAt } : {}),
         ...(rawProvider.error ? { error: rawProvider.error } : {}),
         sourcesTried: ["openusage"],

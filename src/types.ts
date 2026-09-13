@@ -121,6 +121,13 @@ export type ProviderQuota = {
   state: {
     status: ProviderStatus;
     stale: boolean;
+    /**
+     * Additive provenance for an OpenUsage provider whose upstream cache
+     * entry was past its TTL when read. The selector never reads this; it is
+     * kept so `sources[]` can still report that the adapter served a
+     * cache-expired reading.
+     */
+    cacheStale?: boolean;
     refreshedAt?: string;
     error?: string;
     sourcesTried?: string[];

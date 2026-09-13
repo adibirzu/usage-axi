@@ -19,9 +19,18 @@ output is the quota-axi `schemaVersion` envelope extended additively so
 - OpenUsage resource → quota-axi window id map: `src/sources/openusage.ts` (`RESOURCE_MAP`,
   `PROVIDER_ALIAS`). `antigravity` is presented as provider `agy`.
 - Merge rule (OpenUsage windows win; quota-axi may only supply semantics with no dangling
-  window join): `adoptSemantics` in `src/sources/index.ts`.
+  window join; a provider OpenUsage reports with zero windows is filled from quota-axi):
+  `mergeProviders`/`adoptSemantics` in `src/sources/index.ts`.
+- A cold `openusage` read is cache-first (no `--force`) and gets a 180s ceiling
+  (`DEFAULT_OPENUSAGE_TIMEOUT_MS`, override `USAGE_AXI_OPENUSAGE_TIMEOUT_MS` in
+  `src/sources/openusage.ts`). OpenUsage's own `provider.stale` is a cache-TTL flag and must
+  never reach the selector contract: it is presented fresh with the flag preserved additively
+  as `state.cacheStale`. A failed adapter must show up in the additive `sources[]` in
+  `--json [--full]`, never silently downgrade the document.
 - Machine probes, ported from firstmate's `bin/fm-capacity-lib.sh` ideas but not importing it:
-  `src/sources/machine.ts`.
+  `src/sources/machine.ts`. `agents` uses that worker-root rule but excludes usage-axi's own
+  probe tree (`processTreePids`), so the concurrent `opencode models` read does not count as a
+  fleet agent.
 - CLI routing/default command: `normalizeArgv` in `src/cli.ts` (flag-first invocations route
   to the implicit `quota` command).
 
@@ -37,7 +46,7 @@ output is the quota-axi `schemaVersion` envelope extended additively so
 
 ## Tests
 
-`npm test` runs vitest: source units plus the U1–U12 acceptance fixtures in
+`npm test` runs vitest: source units plus the U1–U17 acceptance fixtures in
 `test/acceptance.test.ts`, which build the exact `--json --full` payload from the Mac
 captures in `test/fixtures/` and feed it to the vendored selector.
 

@@ -19,10 +19,10 @@ type Context = { binPath: string };
 export async function quotaCommand(args: string[], context: Context | undefined): Promise<string> {
   const binPath = context?.binPath ?? "usage-axi";
   const flags = parseFlags(args);
-  const { response } = await collectUsage({ force: flags.force, ...(flags.providers ? { providers: flags.providers } : {}) });
+  const { response, reports } = await collectUsage({ force: flags.force, ...(flags.providers ? { providers: flags.providers } : {}) });
   if (everyProviderFailed(response)) process.exitCode = 1;
-  if (flags.json) return `${JSON.stringify(toJsonObject(response, flags.full), null, 2)}\n`;
-  return renderUsageToon(response, binPath, flags.full);
+  if (flags.json) return `${JSON.stringify(toJsonObject(response, flags.full, reports), null, 2)}\n`;
+  return renderUsageToon(response, binPath, flags.full, reports);
 }
 
 export async function machineCommand(args: string[], context: Context | undefined): Promise<string> {

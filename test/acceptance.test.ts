@@ -302,6 +302,110 @@ describe("U11: spendPriority ranks above headroom", () => {
   });
 });
 
+type PayloadProvider = {
+  provider: string;
+  source: string;
+  windows: Array<{ id: string; percentRemaining?: number }>;
+};
+
+const LIVE_MAC = () => fixture("usage-axi-live-mac-20260913T1421.json");
+const LIVE_NOW = epochOf("2026-09-13T14:21:24.131Z");
+const LIVE_MAC_PR3 = () => fixture("usage-axi-live-mac-pr3-20260913T1450.json");
+const LIVE_PR3_NOW = epochOf("2026-09-13T14:53:18.784Z");
+
+describe("U13: live Mac 14:21 capture — selector verdicts", () => {
+  it("prices the declared cursor auto_usage window and refuses its provider-wide zero", async () => {
+    const declared = await runSelector(LIVE_MAC(), [{ harness: "cursor", quotaWindow: "auto_usage" }], LIVE_NOW);
+    expect(declared.code).toBe(0);
+    expect(declared.stderr).toContain("window auto_usage headroom=99.15555555555555%");
+
+    // The smallest counterfactual: nothing else changes, only the declared
+    // window is dropped, and the api_usage 0% minimum takes over.
+    const wide = await runSelector(LIVE_MAC(), [{ harness: "cursor" }], LIVE_NOW);
+    expect(wide.code).toBe(3);
+    expect(wide.stderr).toContain("quota headroom 0% is at or below 20% reserve");
+  });
+
+  it("selects grok and agy, and refuses the captured empty claude", async () => {
+    const grok = await runSelector(LIVE_MAC(), [{ harness: "grok" }], LIVE_NOW);
+    expect(grok.code).toBe(0);
+    const agy = await runSelector(LIVE_MAC(), [{ harness: "agy", quotaWindow: "gemini_5h" }], LIVE_NOW);
+    expect(agy.code).toBe(0);
+
+    const claude = await runSelector(LIVE_MAC(), [{ harness: "claude" }], LIVE_NOW);
+    expect(claude.code).toBe(3);
+    expect(claude.stderr).toContain("no usable live window percentage");
+  });
+
+  it("refuses opencode-go: the selector has no opencode provider identity", async () => {
+    const result = await runSelector(
+      LIVE_MAC(),
+      [{ harness: "opencode", provider: "opencode", model: "opencode-go/deepseek-v4.1-flash" }],
+      LIVE_NOW,
+    );
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain("provider identity is unresolved or unsupported for harness opencode");
+  });
+});
+
+describe("U14: an empty OpenUsage provider no longer shadows quota-axi", () => {
+  it("fills claude five_hour/seven_day/model:fable from quota-axi and selects it", async () => {
+    const raw = JSON.parse(readFileSync(fixture("openusage-mac-20260913.json"), "utf8")) as {
+      providers: Record<string, { resources?: Record<string, unknown> }>;
+    };
+    raw.providers["claude"]!.resources = {};
+    const { dir, cleanup } = tempDir();
+    try {
+      const { payload } = await buildUsage({
+        USAGE_AXI_OPENUSAGE_JSON: writeJson(dir, "openusage-empty-claude.json", raw),
+        USAGE_AXI_QUOTA_AXI_JSON: fixture("quota-axi-mac-20260913.json"),
+        USAGE_AXI_OPENCODE_MODELS: missingFixture(),
+        USAGE_AXI_MACHINE_JSON: writeJson(dir, "machine.json", MACHINE_FIXTURE),
+      });
+      const providers = payload["providers"] as PayloadProvider[];
+      const claude = providers.find((provider) => provider.provider === "claude");
+      expect(claude?.source).toBe("quota-axi");
+      expect(claude?.windows.map((window) => window.id).sort()).toEqual([
+        "five_hour",
+        "model:fable",
+        "seven_day",
+      ]);
+      expect(claude?.windows.find((window) => window.id === "five_hour")?.percentRemaining).toBe(92);
+      expect(claude?.windows.find((window) => window.id === "seven_day")?.percentRemaining).toBe(23);
+      expect(claude?.windows.find((window) => window.id === "model:fable")?.percentRemaining).toBe(65);
+
+      await withPayload(payload, async (file) => {
+        const result = await runSelector(file, [{ harness: "claude" }], epochOf(payload["generatedAt"] as string));
+        expect(result.code).toBe(0);
+        expect(parse(result.stdout).harness).toBe("claude");
+      });
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("U15: a failed OpenUsage is visible, not swallowed", () => {
+  it("carries an openusage sources[] error while quota-axi still reports", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const { payload } = await buildUsage({
+        USAGE_AXI_OPENUSAGE_JSON: missingFixture(),
+        USAGE_AXI_QUOTA_AXI_JSON: fixture("quota-axi-mac-20260913.json"),
+        USAGE_AXI_OPENCODE_MODELS: missingFixture(),
+        USAGE_AXI_MACHINE_JSON: writeJson(dir, "machine.json", MACHINE_FIXTURE),
+      });
+      const sources = payload["sources"] as Array<{ source: string; status: string; detail: string }>;
+      const openusage = sources.find((source) => source.source === "openusage");
+      expect(openusage?.status).toBe("unavailable");
+      expect(openusage?.detail).toContain("openusage");
+      expect((payload["providers"] as PayloadProvider[]).length).toBeGreaterThan(0);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
 describe("U12: grok usable auth with no window is not capacity", () => {
   it("never prices a windowless grok against a healthy candidate", async () => {
     const payload = await usageFromQuotaAxi({
@@ -331,5 +435,108 @@ describe("U12: grok usable auth with no window is not capacity", () => {
       const alone = await runSelector(file, [{ harness: "grok" }, { harness: "grok" }], NOW);
       expect(alone.code).not.toBe(0);
     });
+  });
+});
+
+describe("U16: live Mac PR3 capture — the five selector proofs", () => {
+  it("chooses claude, cursor auto_usage and agy, refuses opencode, and shows the captured stale grok", async () => {
+    const claude = await runSelector(LIVE_MAC_PR3(), [{ harness: "claude" }], LIVE_PR3_NOW);
+    expect(claude.code).toBe(0);
+    expect(claude.stderr).toContain("headroom=22%");
+
+    const cursor = await runSelector(
+      LIVE_MAC_PR3(),
+      [{ harness: "cursor", quotaWindow: "auto_usage" }],
+      LIVE_PR3_NOW,
+    );
+    expect(cursor.code).toBe(0);
+    expect(cursor.stderr).toContain("window auto_usage headroom=99.15555555555555%");
+
+    const agy = await runSelector(LIVE_MAC_PR3(), [{ harness: "agy", quotaWindow: "gemini_5h" }], LIVE_PR3_NOW);
+    expect(agy.code).toBe(0);
+    expect(agy.stderr).toContain("window gemini_5h headroom=99%");
+
+    const opencode = await runSelector(
+      LIVE_MAC_PR3(),
+      [{ harness: "opencode", provider: "opencode", model: "opencode-go/deepseek-v4.1-flash" }],
+      LIVE_PR3_NOW,
+    );
+    expect(opencode.code).toBe(2);
+    expect(opencode.stderr).toContain("provider identity is unresolved or unsupported for harness opencode");
+
+    // The captured failure: OpenUsage's cache-TTL stale flag reached the
+    // contract, so grok was refused even though its window was 100% remaining.
+    const grok = await runSelector(LIVE_MAC_PR3(), [{ harness: "grok" }], LIVE_PR3_NOW);
+    expect(grok.code).toBe(3);
+    expect(grok.stderr).toContain("provider telemetry not fresh");
+  });
+
+  it("proves the counterfactual: flipping only state.stale/status makes grok choose", async () => {
+    const raw = JSON.parse(readFileSync(LIVE_MAC_PR3(), "utf8")) as {
+      providers: Array<{ provider: string; state: { status: string; stale: boolean } }>;
+    };
+    const grok = raw.providers.find((provider) => provider.provider === "grok");
+    if (!grok) throw new Error("expected grok in the PR3 capture");
+    grok.state.status = "fresh";
+    grok.state.stale = false;
+
+    await withPayload(raw as Payload, async (file) => {
+      const result = await runSelector(file, [{ harness: "grok" }], LIVE_PR3_NOW);
+      expect(result.code).toBe(0);
+      expect(result.stderr).toContain("headroom=100%");
+    });
+  });
+});
+
+describe("U17: a cache-expired OpenUsage grok no longer reaches the selector as stale", () => {
+  it("maps the stale upstream flag to cacheStale and chooses grok at 100%", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      // Derived from the PR3 capture's grok window (credits 100%, resets
+      // 2026-09-15) with the upstream cache flag the CLI reported.
+      const raw = {
+        generatedAt: "2026-09-13T14:53:18.784Z",
+        providers: {
+          grok: {
+            displayName: "Grok",
+            stale: true,
+            fetchedAt: "2026-09-13T14:48:15.000Z",
+            resources: {
+              weekly: {
+                kind: "consumption",
+                unit: "percent",
+                limit: 100,
+                remaining: 100,
+                used: 0,
+                utilization: 0,
+                resetsAt: "2026-09-15T00:00:00.000Z",
+                windowSeconds: 604800,
+              },
+            },
+          },
+        },
+      };
+      const { payload } = await buildUsage({
+        USAGE_AXI_OPENUSAGE_JSON: writeJson(dir, "openusage-stale-grok.json", raw),
+        USAGE_AXI_QUOTA_AXI_JSON: missingFixture(),
+        USAGE_AXI_OPENCODE_MODELS: missingFixture(),
+        USAGE_AXI_MACHINE_JSON: writeJson(dir, "machine.json", MACHINE_FIXTURE),
+      });
+      const grok = (payload["providers"] as Array<Record<string, unknown>>).find(
+        (provider) => provider["provider"] === "grok",
+      );
+      const state = grok?.["state"] as { status: string; stale: boolean; cacheStale?: boolean };
+      expect(state.status).toBe("fresh");
+      expect(state.stale).toBe(false);
+      expect(state.cacheStale).toBe(true);
+
+      await withPayload(payload, async (file) => {
+        const result = await runSelector(file, [{ harness: "grok" }], epochOf(raw.generatedAt));
+        expect(result.code).toBe(0);
+        expect(result.stderr).toContain("headroom=100%");
+      });
+    } finally {
+      cleanup();
+    }
   });
 });
