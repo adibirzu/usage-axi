@@ -1,0 +1,61 @@
+{
+  "name": "usage-axi",
+  "version": "0.1.0",
+  "description": "AXI CLI that reports one truthful picture of every subscription, free pool, and machine capacity as quota-axi-compatible JSON or TOON.",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/adibirzu/usage-axi.git"
+  },
+  "keywords": [
+    "usage",
+    "quota",
+    "cli",
+    "agent",
+    "axi",
+    "toon",
+    "openusage",
+    "quota-axi",
+    "capacity"
+  ],
+  "bin": {
+    "usage-axi": "./dist/bin/usage-axi.js"
+  },
+  "files": [
+    "dist",
+    "skills/usage-axi",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:skill": "tsx scripts/build-skill.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "tsx bin/usage-axi.ts",
+    "lint": "eslint bin src test scripts",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@toon-format/toon": "^2.1.0",
+    "axi-sdk-js": "^0.1.11"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.0.0",
+    "eslint": "^10.1.0",
+    "globals": "^17.4.0",
+    "tsx": "^4.23.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.58.0",
+    "vitest": "^3.0.0"
+  }
+}
