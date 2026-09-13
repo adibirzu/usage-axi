@@ -4,10 +4,13 @@ import {
   MACHINE_FIXTURE,
   clearUsageEnv,
   fixture,
+  loadMachineSnapshot,
   missingFixture,
   tempDir,
   writeJson,
 } from "./support/harness.js";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 afterEach(() => {
   clearUsageEnv();
@@ -104,6 +107,25 @@ describe("machine, sources, doctor", () => {
     const payload = JSON.parse(await runCli(["machine", "--json"]));
     expect(payload.machine.agentCeiling).toBe(10);
     expect(payload.machine.memoryFreePct).toBe(58.9);
+  });
+
+  it("prints the counted roots for a replayed ps snapshot", async () => {
+    const snapshot = loadMachineSnapshot("adi1-20260913");
+    expect(snapshot).not.toBeNull();
+    if (!snapshot) return;
+    const { dir } = tempDir("usage-axi-cli-machine-");
+    const commPath = join(dir, "comm.ps");
+    const argvPath = join(dir, "argv.ps");
+    writeFileSync(commPath, snapshot.comm);
+    writeFileSync(argvPath, snapshot.argv);
+    process.env["USAGE_AXI_MACHINE_PS_COMM"] = commPath;
+    process.env["USAGE_AXI_MACHINE_PS_ARGV"] = argvPath;
+    const payload = JSON.parse(await runCli(["machine", "--json"]));
+    expect(payload.machine.agents).toBe(snapshot.meta.golden.agents);
+    expect(payload.machine.roots).toHaveLength(snapshot.meta.golden.agents);
+    expect(payload.machine.roots[0]).toEqual(
+      expect.objectContaining({ pid: expect.any(Number), comm: expect.any(String), match: expect.any(String) }),
+    );
   });
 
   it("reports source provenance", async () => {

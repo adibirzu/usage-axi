@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,6 +22,8 @@ const ENV_KEYS = [
   "USAGE_AXI_QUOTA_AXI_JSON",
   "USAGE_AXI_OPENCODE_MODELS",
   "USAGE_AXI_MACHINE_JSON",
+  "USAGE_AXI_MACHINE_PS_COMM",
+  "USAGE_AXI_MACHINE_PS_ARGV",
   "USAGE_AXI_OPENUSAGE_BIN",
   "USAGE_AXI_QUOTA_AXI_BIN",
   "USAGE_AXI_OPENCODE_BIN",
@@ -35,6 +37,43 @@ export function clearUsageEnv(): void {
 
 export function fixture(name: string): string {
   return join(FIXTURES, name);
+}
+
+/**
+ * Real two-file ps snapshots plus the fork's golden count. See
+ * `test/fixtures/machine/README.md`; a macOS capture in the same format goes
+ * here as `<host>-<YYYYMMDD>.{comm.ps,argv.ps,json}` and is exercised
+ * automatically.
+ */
+export const MACHINE_FIXTURES = join(FIXTURES, "machine");
+
+export type MachineSnapshotMeta = {
+  source: string;
+  platform: string;
+  capturedAt: string;
+  golden: { residentMb: number; agents: number; procs: number };
+};
+
+export function loadMachineSnapshot(
+  base: string,
+): { comm: string; argv: string; meta: MachineSnapshotMeta } | null {
+  const metaPath = join(MACHINE_FIXTURES, `${base}.json`);
+  const commPath = join(MACHINE_FIXTURES, `${base}.comm.ps`);
+  const argvPath = join(MACHINE_FIXTURES, `${base}.argv.ps`);
+  if (!existsSync(metaPath) || !existsSync(commPath) || !existsSync(argvPath)) return null;
+  return {
+    comm: readFileSync(commPath, "utf8"),
+    argv: readFileSync(argvPath, "utf8"),
+    meta: JSON.parse(readFileSync(metaPath, "utf8")) as MachineSnapshotMeta,
+  };
+}
+
+export function machineSnapshotNames(): string[] {
+  if (!existsSync(MACHINE_FIXTURES)) return [];
+  return readdirSync(MACHINE_FIXTURES)
+    .filter((name) => name.endsWith(".json"))
+    .map((name) => name.slice(0, -".json".length))
+    .sort();
 }
 
 /** A path that is guaranteed to be unreadable, to disable a source. */

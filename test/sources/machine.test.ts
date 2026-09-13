@@ -4,8 +4,18 @@ import {
   measureMachine,
   parseMemoryPressureFreePct,
   processTreePids,
+  readFleet,
 } from "../../src/sources/machine.js";
-import { MACHINE_FIXTURE, clearUsageEnv, tempDir, writeJson } from "../support/harness.js";
+import {
+  MACHINE_FIXTURE,
+  clearUsageEnv,
+  loadMachineSnapshot,
+  machineSnapshotNames,
+  tempDir,
+  writeJson,
+} from "../support/harness.js";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 afterEach(clearUsageEnv);
 
@@ -92,6 +102,68 @@ describe("worker-root agent counting", () => {
     // opencode remains.
     expect(countWorkerRoots(comm, argv)).toBe(3);
     expect(countWorkerRoots(comm, argv, tree)).toBe(1);
+  });
+});
+
+describe("fleet reading parity with fm_capacity_fleet_totals", () => {
+  it("reproduces the fork's golden on every real ps snapshot fixture", () => {
+    const names = machineSnapshotNames();
+    expect(names.length).toBeGreaterThan(0);
+    for (const name of names) {
+      const snapshot = loadMachineSnapshot(name);
+      expect(snapshot, `missing fixture files for ${name}`).not.toBeNull();
+      if (!snapshot) continue;
+      const fleet = readFleet(snapshot.comm, snapshot.argv);
+      expect(
+        { residentMb: fleet.residentMb, agents: fleet.agents, procs: fleet.procs },
+        `fixture ${name}`,
+      ).toEqual(snapshot.meta.golden);
+    }
+  });
+
+  it("prints the real adi1 snapshot's roots so machine.agents is auditable", async () => {
+    const snapshot = loadMachineSnapshot("adi1-20260913");
+    expect(snapshot).not.toBeNull();
+    if (!snapshot) return;
+    const { dir, cleanup } = tempDir();
+    const commPath = join(dir, "comm.ps");
+    const argvPath = join(dir, "argv.ps");
+    writeFileSync(commPath, snapshot.comm);
+    writeFileSync(argvPath, snapshot.argv);
+    process.env["USAGE_AXI_MACHINE_PS_COMM"] = commPath;
+    process.env["USAGE_AXI_MACHINE_PS_ARGV"] = argvPath;
+    const machine = await measureMachine();
+    cleanup();
+    expect(machine.agents).toBe(snapshot.meta.golden.agents);
+    expect(machine.roots).toHaveLength(snapshot.meta.golden.agents);
+    expect(machine.roots?.some((root) => root.match === "opencode")).toBe(true);
+    expect(machine.roots?.some((root) => root.match === "grok" && root.comm === "grok")).toBe(true);
+    // Identity only: pid, basename, adapter, matching channel. Never argv body.
+    for (const root of machine.roots ?? []) {
+      expect(Object.keys(root).sort()).toEqual(["comm", "match", "pid", "via"]);
+    }
+  });
+
+  it("loads a macOS two-file snapshot in the same format", async () => {
+    // macOS ps prints absolute executable paths, some with spaces; a bare
+    // node/python basename is resolved from its argv instead.
+    const comm = [
+      "  100     1    1024 /Applications/Claude.app/Contents/MacOS/claude",
+      "  101     1    2048 /Users/op/Library/Application Support/my tools/opencode",
+      "  200     1    4096 /usr/bin/pip",
+      "  201   200    8192 /opt/homebrew/bin/node",
+      "  202     1    1024 MainThread",
+    ].join("\n");
+    const argv = "  201 node /Users/op/.npm/lib/node_modules/@anthropic-ai/claude-code/cli.js";
+    const { dir, cleanup } = tempDir();
+    writeFileSync(join(dir, "comm.ps"), comm);
+    writeFileSync(join(dir, "argv.ps"), argv);
+    process.env["USAGE_AXI_MACHINE_PS_COMM"] = join(dir, "comm.ps");
+    process.env["USAGE_AXI_MACHINE_PS_ARGV"] = join(dir, "argv.ps");
+    const machine = await measureMachine();
+    cleanup();
+    expect(machine.agents).toBe(3);
+    expect(machine.roots?.map((root) => root.match).sort()).toEqual(["claude", "claude", "opencode"]);
   });
 });
 

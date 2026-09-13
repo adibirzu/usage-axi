@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { runCapture } from "../lib/process.js";
-import { readJsonFile } from "../lib/fs.js";
+import { readJsonFile, readTextFile } from "../lib/fs.js";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { MachineCapacity } from "../types.js";
+import type { AgentRoot, MachineCapacity } from "../types.js";
 
 // Ported from the measurement ideas in firstmate's bin/fm-capacity-lib.sh:
 // one probe per signal, every probe returning a real reading or null, never a
@@ -153,14 +153,34 @@ function baseName(path: string): string {
   return index >= 0 ? path.slice(index + 1) : path;
 }
 
-function namesWorker(value: string): boolean {
-  return WORKER_NAMES.some(
-    (name) => value === name || value.startsWith(`${name}-`) || value.startsWith(`${name}_`) || value.startsWith(`${name}.`),
-  );
+/**
+ * The adapter a command basename names, if any: an exact adapter name, or an
+ * adapter followed by `-`, `_`, or `.` (e.g. `codex.js`, `muse-bin-1`). Exact
+ * equality is checked across the whole list first so `pi-signed` resolves to
+ * itself rather than to the `pi` prefix. Deliberately not a bare substring:
+ * `pip` must never read as `pi`.
+ */
+function namesWorkerMatch(value: string): string | null {
+  if (WORKER_NAMES.includes(value)) return value;
+  for (const name of WORKER_NAMES) {
+    if (value.startsWith(`${name}-`) || value.startsWith(`${name}_`) || value.startsWith(`${name}.`)) {
+      return name;
+    }
+  }
+  return null;
 }
 
-function argvNamesWorker(value: string): boolean {
-  return WORKER_NAMES.some((name) => new RegExp(`(^|/|\\s)${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([-_./]|\\s|$)`).test(value));
+/**
+ * The adapter named as a whole path or word component of an interpreter's argv,
+ * anchored on both sides for the same reason (`python -m pi` matches; the `pi`
+ * inside `pip` does not).
+ */
+function argvNamesWorkerMatch(value: string): string | null {
+  for (const name of WORKER_NAMES) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`(^|/|\\s)${escaped}([-_./]|\\s|$)`).test(value)) return name;
+  }
+  return null;
 }
 
 function argvFrom(line: string): { pid: number; args: string } | null {
@@ -168,6 +188,14 @@ function argvFrom(line: string): { pid: number; args: string } | null {
   if (!match) return null;
   return { pid: Number(match[1]), args: match[2] };
 }
+
+/** The result of one fleet reading over two ps snapshots. */
+export type FleetReading = {
+  agents: number | null;
+  procs: number | null;
+  residentMb: number | null;
+  roots: AgentRoot[];
+};
 
 /**
  * Every pid in the process tree rooted at `rootPid`, from a comm snapshot
@@ -201,39 +229,85 @@ export function processTreePids(commSnapshot: string | null, rootPid: number): S
 }
 
 /**
- * Count live worker roots, matching firstmate's adapter-name doctrine. A
- * process is a root when its command basename equals a firstmate adapter name
- * (claude, codex, opencode, pi, pi-signed, grok, kimi, cline, cursor-agent,
- * copilot, muse, agy) or begins with that name followed by `-`, `_`, or `.`;
- * when the basename is a bare `node`/`python`, its argv is searched for the
- * adapter as a path or word component instead. Each matching process counts
- * once. `excludePids` drops this process's own probe tree (transients), so the
- * `opencode models` catalog read does not count as a fleet agent. Kept exported
- * and pure so the worker-root rule can be exercised against fixed ps snapshots.
+ * The pure port of firstmate's `fm_capacity_fleet_totals` matcher. `agents` is
+ * exactly the count that function prints and the `across N agents` figure the
+ * captain's ceiling is defined on; `procs` and `residentMb` are the same
+ * whole-tree sums (resident kilobytes, integer-divided by 1024) so the reading
+ * can be checked against the fork byte-for-byte. `roots` lists every counted
+ * process so `machine.agents` is auditable.
+ *
+ * A process is a root when its command basename names an adapter, or begins
+ * with an adapter followed by `-`/`_`/`.`; when the basename is a bare
+ * `node`/`python`, its argv must name an adapter as a whole path or word
+ * component instead. Each matching process counts once. `excludePids` drops
+ * usage-axi's own transient probe tree only (see `processTreePids`); it must
+ * never exclude an unrelated agent the fork would count.
+ */
+export function readFleet(
+  commSnapshot: string | null,
+  argvSnapshot: string | null,
+  excludePids: ReadonlySet<number> = new Set(),
+): FleetReading {
+  if (!commSnapshot) return { agents: null, procs: null, residentMb: null, roots: [] };
+  const argv = new Map<number, string>();
+  for (const line of (argvSnapshot ?? "").split("\n")) {
+    const parsed = argvFrom(line);
+    if (parsed) argv.set(parsed.pid, parsed.args);
+  }
+  const parent = new Map<number, number>();
+  const size = new Map<number, number>();
+  const known: number[] = [];
+  const root = new Set<number>();
+  const roots: AgentRoot[] = [];
+  for (const line of commSnapshot.split("\n")) {
+    const parsed = parsePs(line);
+    if (!parsed || excludePids.has(parsed.pid)) continue;
+    parent.set(parsed.pid, parsed.ppid);
+    size.set(parsed.pid, parsed.rss);
+    known.push(parsed.pid);
+    const base = baseName(parsed.comm);
+    let match = namesWorkerMatch(base);
+    let via: AgentRoot["via"] = "comm";
+    if (!match && (base.startsWith("node") || base.startsWith("python"))) {
+      match = argvNamesWorkerMatch(argv.get(parsed.pid) ?? "");
+      via = "argv";
+    }
+    if (match) {
+      root.add(parsed.pid);
+      roots.push({ pid: parsed.pid, comm: base, match, via });
+    }
+  }
+  let residentKb = 0;
+  let procs = 0;
+  for (const pid of known) {
+    // Walk to a fleet root, exactly like fm_capacity_fleet_totals. The depth cap
+    // keeps a corrupt or cyclic snapshot from spinning.
+    let current = pid;
+    for (let depth = 0; depth < 64; depth += 1) {
+      if (root.has(current)) {
+        residentKb += size.get(pid) ?? 0;
+        procs += 1;
+        break;
+      }
+      const next = parent.get(current);
+      if (next === undefined) break;
+      current = next;
+    }
+  }
+  return { agents: roots.length, procs, residentMb: Math.floor(residentKb / 1024), roots };
+}
+
+/**
+ * Count live worker roots with firstmate's adapter-name doctrine. Kept as the
+ * narrow, exported entry point the existing snapshot tests use; `readFleet`
+ * carries the same rule plus the auditable roots and the tree sums.
  */
 export function countWorkerRoots(
   commSnapshot: string | null,
   argvSnapshot: string | null,
   excludePids: ReadonlySet<number> = new Set(),
 ): number | null {
-  if (!commSnapshot) return null;
-  const argv = new Map<number, string>();
-  for (const line of (argvSnapshot ?? "").split("\n")) {
-    const parsed = argvFrom(line);
-    if (parsed) argv.set(parsed.pid, parsed.args);
-  }
-  let agents = 0;
-  for (const line of commSnapshot.split("\n")) {
-    const parsed = parsePs(line);
-    if (!parsed || excludePids.has(parsed.pid)) continue;
-    const base = baseName(parsed.comm);
-    let hit = namesWorker(base);
-    if (!hit && (base.startsWith("node") || base.startsWith("python"))) {
-      hit = argvNamesWorker(argv.get(parsed.pid) ?? "");
-    }
-    if (hit) agents += 1;
-  }
-  return agents;
+  return readFleet(commSnapshot, argvSnapshot, excludePids).agents;
 }
 
 function suiteSlotFree(argvSnapshot: string | null): boolean | null {
@@ -278,22 +352,51 @@ function fixtureMachine(): MachineCapacity | null {
   return machine;
 }
 
+/**
+ * The two `ps` snapshots the worker-root rule reads, in the same two-file
+ * format firstmate's own probe uses. A test or an operator can point these at
+ * files (`ps -ax -o pid=,ppid=,rss=,comm=` and `ps -ax -o pid=,args=`) to
+ * replay a captured machine exactly, including a macOS capture on another host;
+ * both must be set to take effect.
+ */
+async function psSnapshots(): Promise<{ comm: string | null; argv: string | null; live: boolean }> {
+  const commFile = process.env["USAGE_AXI_MACHINE_PS_COMM"];
+  const argvFile = process.env["USAGE_AXI_MACHINE_PS_ARGV"];
+  if (commFile && argvFile) {
+    return { comm: readTextFile(commFile), argv: readTextFile(argvFile), live: false };
+  }
+  return {
+    comm: await runText("ps", ["-A", "-o", "pid=,ppid=,rss=,comm="]),
+    argv: await runText("ps", ["-A", "-o", "pid=,args="]),
+    live: true,
+  };
+}
+
 export async function measureMachine(): Promise<MachineCapacity> {
   const fixture = fixtureMachine();
   if (fixture) return fixture;
 
   const [coreCount, load, freePct] = await Promise.all([cores(), load1(), memoryFreePct()]);
-  const commSnapshot = await runText("ps", ["-A", "-o", "pid=,ppid=,rss=,comm="]);
-  const argvSnapshot = await runText("ps", ["-A", "-o", "pid=,args="]);
+  const { comm: commSnapshot, argv: argvSnapshot, live } = await psSnapshots();
 
   const loadPerCore =
     coreCount && load !== null ? Math.round((load / coreCount) * 1000) / 1000 : null;
 
+  // Exclude this process's own probe tree only for a live reading: the
+  // concurrent `opencode models` catalog read is a worker-root by the same rule
+  // but is not fleet work. A replayed snapshot is from another moment (possibly
+  // another host), so its own pids must be counted exactly as captured. No
+  // unrelated agent (an operator's grok/claude TUI, another worker) is ever
+  // excluded.
+  const exclude = live ? processTreePids(commSnapshot, process.pid) : new Set<number>();
+  const fleet = readFleet(commSnapshot, argvSnapshot, exclude);
+
   return {
-    agents: countWorkerRoots(commSnapshot, argvSnapshot, processTreePids(commSnapshot, process.pid)),
+    agents: fleet.agents,
     agentCeiling: agentCeiling(),
     loadPerCore,
     memoryFreePct: freePct,
     suiteSlotFree: suiteSlotFree(argvSnapshot),
+    roots: fleet.roots,
   };
 }

@@ -28,6 +28,9 @@ description:
   copilot, muse, agy), or begins with one followed by -/_/., or - for a bare node/python - whose
   argv names an adapter; each matching process counts once. usage-axi's own transient probes (the
   opencode models catalog read) are excluded, so the count matches fm-capacity.sh on the same host.
+  machine --json also prints roots: every counted pid with its comm basename and matched adapter.
+  Set USAGE_AXI_MACHINE_PS_COMM and USAGE_AXI_MACHINE_PS_ARGV to two ps snapshot files
+  (ps -ax -o pid=,ppid=,rss=,comm= and ps -ax -o pid=,args=) to replay a captured machine.
   memoryFreePct is the OS free-memory reading: macOS memory_pressure -Q free percent (falling back
   to vm_stat free+speculative), Linux MemAvailable as a share of MemTotal.
 flags[2]:
