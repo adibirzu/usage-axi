@@ -1,6 +1,6 @@
 {
   "name": "usage-axi",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AXI CLI that reports one truthful picture of every subscription, free pool, and machine capacity as quota-axi-compatible JSON or TOON.",
   "type": "module",
   "repository": {

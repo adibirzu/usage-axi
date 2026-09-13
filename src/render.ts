@@ -91,6 +91,7 @@ export function renderUsageToon(
   response: UsageResponse,
   binPath: string,
   full: boolean,
+  reports?: SourceReport[],
 ): string {
   const blocks: string[] = [
     encode({
@@ -109,6 +110,19 @@ export function renderUsageToon(
     if (pools.length) blocks.push(encode({ pools }));
   }
   blocks.push(encode({ machine: response.machine }));
+  // A degraded source must be visible even in the default view, never hidden
+  // behind a provider set that looks complete.
+  if (reports?.some((report) => report.status !== "available")) {
+    blocks.push(
+      encode({
+        sources: reports.map((report) => ({
+          source: report.source,
+          status: report.status,
+          detail: report.detail,
+        })),
+      }),
+    );
+  }
   blocks.push(renderHelp(usageHelp(full)));
   return blocks.join("\n");
 }
@@ -122,7 +136,9 @@ export function renderMachineToon(machine: MachineCapacity, binPath: string): st
     encode({ machine }),
     renderHelp([
       "machine is measured live and never cached",
-      "agents counts verified worker roots; suiteSlotFree is true when no test suite is running",
+      "agents counts worker roots with fm-capacity-lib.sh's adapter-basename/argv rule; each root once, excluding usage-axi's own transient probes",
+      "memoryFreePct is macOS memory_pressure -Q free percent, else vm_stat free+speculative; Linux MemAvailable",
+      "suiteSlotFree is true when no test suite is running",
       "Pass `--json` for the machine object without TOON framing",
     ]),
   ].join("\n");
@@ -173,14 +189,25 @@ export function doctorJson(checks: DoctorCheck[]): Record<string, unknown> {
   return { checks };
 }
 
-/** JSON shape: the quota-axi contract, minus identity, optionally full. */
-export function toJsonObject(response: UsageResponse, full: boolean): Record<string, unknown> {
+/**
+ * JSON shape: the quota-axi contract, minus identity, optionally full.
+ *
+ * When `reports` is supplied the payload carries an additive `sources[]` array
+ * so an operator can see a degraded adapter instead of a silently thinner
+ * document. `fm-dispatch-select.mjs` ignores the unknown key.
+ */
+export function toJsonObject(
+  response: UsageResponse,
+  full: boolean,
+  reports?: SourceReport[],
+): Record<string, unknown> {
   const providers = response.providers.map((provider) => jsonProvider(provider, full));
   return {
     generatedAt: response.generatedAt,
     schemaVersion: response.schemaVersion,
     providers,
     machine: response.machine,
+    ...(reports ? { sources: reports } : {}),
   };
 }
 

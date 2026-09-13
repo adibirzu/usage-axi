@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { collectUsage } from "../../src/sources/index.js";
 import { toJsonObject } from "../../src/render.js";
-import type { UsageResponse } from "../../src/types.js";
+import type { SourceReport, UsageResponse } from "../../src/types.js";
 
 const execFileAsync = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -65,12 +65,12 @@ export const MACHINE_FIXTURE = {
 export async function buildUsage(
   env: Record<string, string>,
   full = true,
-): Promise<{ payload: Record<string, unknown>; response: UsageResponse }> {
+): Promise<{ payload: Record<string, unknown>; response: UsageResponse; reports: SourceReport[] }> {
   clearUsageEnv();
   for (const [key, value] of Object.entries(env)) process.env[key] = value;
   try {
-    const { response } = await collectUsage({ force: false });
-    return { payload: toJsonObject(response, full), response };
+    const { response, reports } = await collectUsage({ force: false });
+    return { payload: toJsonObject(response, full, reports), response, reports };
   } finally {
     clearUsageEnv();
   }

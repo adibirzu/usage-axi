@@ -12,7 +12,7 @@ export type CaptureResult =
 export function runCapture(
   file: string,
   args: string[],
-  options: { timeoutMs?: number } = {},
+  options: { timeoutMs?: number; includeStderr?: boolean } = {},
 ): Promise<CaptureResult> {
   return new Promise((resolve) => {
     execFile(
@@ -24,7 +24,7 @@ export function runCapture(
         maxBuffer: 8 * 1024 * 1024,
         env: process.env,
       },
-      (error, stdout) => {
+      (error, stdout, stderr) => {
         if (error) {
           const reason =
             (error as NodeJS.ErrnoException).code === "ENOENT"
@@ -33,7 +33,9 @@ export function runCapture(
           resolve({ ok: false, reason });
           return;
         }
-        resolve({ ok: true, stdout });
+        // Some macOS tools (`memory_pressure`) report on stderr; callers that
+        // parse a human report opt in to a merged stream.
+        resolve({ ok: true, stdout: options.includeStderr ? `${stdout}${stderr}` : stdout });
       },
     );
   });

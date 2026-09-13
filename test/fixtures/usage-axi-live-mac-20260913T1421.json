@@ -1,0 +1,592 @@
+{
+  "generatedAt": "2026-09-13T14:21:24.131Z",
+  "schemaVersion": 5,
+  "providers": [
+    {
+      "provider": "agy",
+      "label": "Antigravity",
+      "source": "openusage",
+      "windows": [
+        {
+          "id": "gemini_5h",
+          "kind": "session",
+          "label": "Gemini 5h",
+          "percentRemaining": 99,
+          "percentUsed": 1,
+          "resetsAt": "2026-09-13T15:41:19.000Z",
+          "windowSeconds": 18000
+        },
+        {
+          "id": "gemini_weekly",
+          "kind": "weekly",
+          "label": "Gemini week",
+          "percentRemaining": 87,
+          "percentUsed": 13,
+          "resetsAt": "2026-09-18T09:26:55.000Z",
+          "windowSeconds": 604800
+        },
+        {
+          "id": "claude_gpt_5h",
+          "kind": "session",
+          "label": "Claude/GPT 5h",
+          "percentRemaining": 100,
+          "percentUsed": 0,
+          "resetsAt": "2026-09-13T19:17:18.000Z",
+          "windowSeconds": 18000
+        },
+        {
+          "id": "claude_gpt_weekly",
+          "kind": "weekly",
+          "label": "Claude/GPT week",
+          "percentRemaining": 29,
+          "percentUsed": 71,
+          "resetsAt": "2026-09-16T16:37:59.000Z",
+          "windowSeconds": 604800
+        }
+      ],
+      "quotaSemantics": {
+        "status": "known",
+        "description": "agy windows jointly bound every model, so effective remaining is the minimum across the reported windows.",
+        "effectiveAvailability": [
+          {
+            "scope": "all_models",
+            "status": "known",
+            "effectivePercentRemaining": 29,
+            "boundedBy": [
+              "gemini_5h",
+              "gemini_weekly",
+              "claude_gpt_5h",
+              "claude_gpt_weekly"
+            ],
+            "limitingWindowIds": [
+              "claude_gpt_weekly"
+            ]
+          }
+        ]
+      },
+      "state": {
+        "status": "fresh",
+        "stale": false,
+        "refreshedAt": "2026-09-13T14:17:18.000Z",
+        "sourcesTried": [
+          "openusage"
+        ]
+      },
+      "pools": [
+        {
+          "id": "gemini",
+          "label": "Antigravity Gemini",
+          "provider": "agy",
+          "windowIds": [
+            "gemini_5h",
+            "gemini_weekly"
+          ],
+          "percentRemaining": 87,
+          "modelCount": 0
+        },
+        {
+          "id": "claude_gpt",
+          "label": "Antigravity Claude/GPT",
+          "provider": "agy",
+          "windowIds": [
+            "claude_gpt_5h",
+            "claude_gpt_weekly"
+          ],
+          "percentRemaining": 29,
+          "modelCount": 0
+        }
+      ]
+    },
+    {
+      "provider": "claude",
+      "label": "Claude",
+      "source": "openusage",
+      "plan": "Max 20x",
+      "windows": [],
+      "quotaSemantics": {
+        "status": "unknown",
+        "description": "No usable live percentage is reported for claude, so no effective remaining value can be computed.",
+        "effectiveAvailability": []
+      },
+      "state": {
+        "status": "fresh",
+        "stale": false,
+        "refreshedAt": "2026-09-13T14:20:49.000Z",
+        "sourcesTried": [
+          "openusage"
+        ]
+      }
+    },
+    {
+      "provider": "codex",
+      "label": "Codex",
+      "source": "openusage",
+      "plan": "Business Premium",
+      "windows": [
+        {
+          "id": "creditValue",
+          "kind": "credits",
+          "label": "creditValue"
+        },
+        {
+          "id": "credits",
+          "kind": "credits",
+          "label": "credits"
+        },
+        {
+          "id": "rateLimitResets",
+          "kind": "unknown",
+          "label": "rateLimitResets"
+        },
+        {
+          "id": "weekly",
+          "kind": "weekly",
+          "label": "week",
+          "percentRemaining": 57,
+          "percentUsed": 43,
+          "resetsAt": "2026-09-19T09:04:02.000Z",
+          "windowSeconds": 604800
+        }
+      ],
+      "quotaSemantics": {
+        "status": "known",
+        "description": "codex quota semantics supplied by quota-axi.",
+        "effectiveAvailability": [
+          {
+            "scope": "all_models",
+            "status": "known",
+            "boundedBy": [
+              "weekly"
+            ],
+            "effectivePercentRemaining": 57,
+            "limitingWindowIds": [
+              "weekly"
+            ],
+            "selection": {
+              "status": "known",
+              "spendPriority": -1.776
+            }
+          }
+        ]
+      },
+      "state": {
+        "status": "fresh",
+        "stale": false,
+        "refreshedAt": "2026-09-13T14:19:12.000Z",
+        "sourcesTried": [
+          "openusage"
+        ]
+      }
+    },
+    {
+      "provider": "copilot",
+      "label": "Copilot",
+      "source": "openusage",
+      "plan": "Individual Pro",
+      "windows": [
+        {
+          "id": "premium_interactions",
+          "kind": "monthly",
+          "label": "premium interactions",
+          "percentRemaining": 73.1,
+          "percentUsed": 26.900000000000006,
+          "resetsAt": "2026-10-01T00:00:00.000Z",
+          "windowSeconds": 2592000
+        }
+      ],
+      "quotaSemantics": {
+        "status": "known",
+        "description": "copilot windows jointly bound every model, so effective remaining is the minimum across the reported windows.",
+        "effectiveAvailability": [
+          {
+            "scope": "all_models",
+            "status": "known",
+            "effectivePercentRemaining": 73.1,
+            "boundedBy": [
+              "premium_interactions"
+            ],
+            "limitingWindowIds": [
+              "premium_interactions"
+            ]
+          }
+        ]
+      },
+      "state": {
+        "status": "fresh",
+        "stale": false,
+        "refreshedAt": "2026-09-13T14:17:18.000Z",
+        "sourcesTried": [
+          "openusage"
+        ]
+      }
+    },
+    {
+      "provider": "cursor",
+      "label": "Cursor",
+      "source": "openusage",
+      "plan": "Pro",
+      "windows": [
+        {
+          "id": "api_usage",
+          "kind": "monthly",
+          "label": "API usage",
+          "percentRemaining": 0,
+          "percentUsed": 100,
+          "resetsAt": "2026-10-09T14:49:25.000Z",
+          "windowSeconds": 2592000
+        },
+        {
+          "id": "auto_usage",
+          "kind": "monthly",
+          "label": "auto usage",
+          "percentRemaining": 99.15555555555555,
+          "percentUsed": 0.8444444444444443,
+          "resetsAt": "2026-10-09T14:49:25.000Z",
+          "windowSeconds": 2592000
+        },
+        {
+          "id": "grok_bot",
+          "kind": "weekly",
+          "label": "Grok Bot",
+          "percentRemaining": 48.910725,
+          "percentUsed": 51.089275,
+          "resetsAt": "2026-09-13T18:51:02.000Z",
+          "windowSeconds": 604800
+        },
+        {
+          "id": "total_usage",
+          "kind": "monthly",
+          "label": "total usage",
+          "percentRemaining": 92.1984496124031,
+          "percentUsed": 7.801550387596899,
+          "resetsAt": "2026-10-09T14:49:25.000Z",
+          "windowSeconds": 2592000
+        }
+      ],
+      "quotaSemantics": {
+        "status": "known",
+        "description": "cursor windows jointly bound every model, so effective remaining is the minimum across the reported windows.",
+        "effectiveAvailability": [
+          {
+            "scope": "all_models",
+            "status": "known",
+            "effectivePercentRemaining": 0,
+            "boundedBy": [
+              "api_usage",
+              "auto_usage",
+              "grok_bot",
+              "total_usage"
+            ],
+            "limitingWindowIds": [
+              "api_usage"
+            ]
+          }
+        ]
+      },
+      "state": {
+        "status": "fresh",
+        "stale": false,
+        "refreshedAt": "2026-09-13T14:17:20.000Z",
+        "sourcesTried": [
+          "openusage"
+        ]
+      },
+      "pools": [
+        {
+          "id": "auto",
+          "label": "Cursor Auto",
+          "provider": "cursor",
+          "windowIds": [
+            "auto_usage"
+          ],
+          "percentRemaining": 99.15555555555555,
+          "modelCount": 0
+        },
+        {
+          "id": "api",
+          "label": "Cursor API",
+          "provider": "cursor",
+          "windowIds": [
+            "api_usage"
+          ],
+          "percentRemaining": 0,
+          "modelCount": 0
+        }
+      ]
+    },
+    {
+      "provider": "grok",
+      "label": "Grok",
+      "source": "openusage",
+      "plan": "SuperGrok",
+      "windows": [
+        {
+          "id": "credits",
+          "kind": "credits",
+          "label": "credits",
+          "percentRemaining": 100,
+          "percentUsed": 0,
+          "resetsAt": "2026-09-15T00:00:00.000Z",
+          "windowSeconds": 604800
+        }
+      ],
+      "quotaSemantics": {
+        "status": "known",
+        "description": "grok quota semantics supplied by quota-axi.",
+        "effectiveAvailability": [
+          {
+            "scope": "all_products",
+            "status": "known",
+            "boundedBy": [
+              "credits"
+            ],
+            "effectivePercentRemaining": 100,
+            "limitingWindowIds": [
+              "credits"
+            ],
+            "selection": {
+              "status": "known",
+              "spendPriority": 4.9935
+            }
+          }
+        ]
+      },
+      "state": {
+        "status": "fresh",
+        "stale": false,
+        "refreshedAt": "2026-09-13T14:17:18.000Z",
+        "sourcesTried": [
+          "openusage"
+        ]
+      }
+    },
+    {
+      "provider": "opencode",
+      "label": "OpenCode",
+      "source": "openusage",
+      "plan": "Go",
+      "windows": [
+        {
+          "id": "monthly",
+          "kind": "monthly",
+          "label": "month",
+          "percentRemaining": 95,
+          "percentUsed": 5,
+          "resetsAt": "2026-09-23T22:05:13.000Z",
+          "windowSeconds": 2592000
+        },
+        {
+          "id": "session",
+          "kind": "session",
+          "label": "session",
+          "percentRemaining": 83,
+          "percentUsed": 17,
+          "resetsAt": "2026-09-13T16:06:39.000Z",
+          "windowSeconds": 18000
+        },
+        {
+          "id": "weekly",
+          "kind": "weekly",
+          "label": "week",
+          "percentRemaining": 89,
+          "percentUsed": 11,
+          "resetsAt": "2026-09-14T00:00:00.000Z",
+          "windowSeconds": 604800
+        }
+      ],
+      "quotaSemantics": {
+        "status": "known",
+        "description": "opencode windows jointly bound every model, so effective remaining is the minimum across the reported windows.",
+        "effectiveAvailability": [
+          {
+            "scope": "all_models",
+            "status": "known",
+            "effectivePercentRemaining": 83,
+            "boundedBy": [
+              "monthly",
+              "session",
+              "weekly"
+            ],
+            "limitingWindowIds": [
+              "session"
+            ]
+          }
+        ]
+      },
+      "state": {
+        "status": "fresh",
+        "stale": false,
+        "refreshedAt": "2026-09-13T14:17:17.000Z",
+        "sourcesTried": [
+          "openusage"
+        ]
+      },
+      "pools": [
+        {
+          "id": "opencode-go",
+          "label": "OpenCode Go",
+          "provider": "opencode",
+          "windowIds": [
+            "monthly",
+            "session",
+            "weekly"
+          ],
+          "percentRemaining": 83,
+          "modelCount": 27,
+          "models": [
+            "opencode-go/deepseek-v4-flash",
+            "opencode-go/deepseek-v4-flash-vision-exp",
+            "opencode-go/deepseek-v4-pro",
+            "opencode-go/deepseek-v4.1-flash",
+            "opencode-go/glm-5.1",
+            "opencode-go/glm-5.2",
+            "opencode-go/glm-5.3",
+            "opencode-go/glm-5.3-flash",
+            "opencode-go/gpt-5.6-luna",
+            "opencode-go/grok-4.6",
+            "opencode-go/hy3",
+            "opencode-go/hy4-preview",
+            "opencode-go/kimi-k2.6",
+            "opencode-go/kimi-k2.7-code",
+            "opencode-go/kimi-k3",
+            "opencode-go/longcat-2.0",
+            "opencode-go/mimo-v2.5",
+            "opencode-go/mimo-v2.5-pro",
+            "opencode-go/minimax-m2.7",
+            "opencode-go/minimax-m3",
+            "opencode-go/muse-spark-1.2-contributor",
+            "opencode-go/muse-spark-1.3-contributor",
+            "opencode-go/qwen3.6-plus",
+            "opencode-go/qwen3.7-max",
+            "opencode-go/qwen3.7-plus",
+            "opencode-go/qwen3.8-flash",
+            "opencode-go/qwen3.8-max"
+          ]
+        },
+        {
+          "id": "opencode",
+          "label": "OpenCode free",
+          "provider": "opencode",
+          "windowIds": [
+            "monthly",
+            "session",
+            "weekly"
+          ],
+          "percentRemaining": 83,
+          "modelCount": 69,
+          "models": [
+            "opencode/big-pickle",
+            "opencode/claude-fable-5",
+            "opencode/claude-fable-5-1",
+            "opencode/claude-haiku-4-5",
+            "opencode/claude-opus-4-5",
+            "opencode/claude-opus-4-6",
+            "opencode/claude-opus-4-7",
+            "opencode/claude-opus-4-8",
+            "opencode/claude-opus-5",
+            "opencode/claude-sonnet-4",
+            "opencode/claude-sonnet-4-5",
+            "opencode/claude-sonnet-4-6",
+            "opencode/claude-sonnet-5",
+            "opencode/deepseek-v4-flash",
+            "opencode/deepseek-v4-flash-vision-exp",
+            "opencode/deepseek-v4-pro",
+            "opencode/gemini-3-flash",
+            "opencode/gemini-3.1-pro",
+            "opencode/gemini-3.5-flash",
+            "opencode/gemini-3.5-flash-lite",
+            "opencode/gemini-3.6-flash",
+            "opencode/gemini-3.7-flash",
+            "opencode/gemini-3.8-flash",
+            "opencode/glm-5",
+            "opencode/glm-5.1",
+            "opencode/glm-5.2",
+            "opencode/glm-5.3",
+            "opencode/glm-5.3-flash",
+            "opencode/gpt-5",
+            "opencode/gpt-5-codex",
+            "opencode/gpt-5-nano",
+            "opencode/gpt-5.1",
+            "opencode/gpt-5.1-codex",
+            "opencode/gpt-5.1-codex-max",
+            "opencode/gpt-5.1-codex-mini",
+            "opencode/gpt-5.2",
+            "opencode/gpt-5.2-codex",
+            "opencode/gpt-5.3-codex",
+            "opencode/gpt-5.3-codex-spark",
+            "opencode/gpt-5.4",
+            "opencode/gpt-5.4-mini",
+            "opencode/gpt-5.4-nano",
+            "opencode/gpt-5.4-pro",
+            "opencode/gpt-5.5",
+            "opencode/gpt-5.5-pro",
+            "opencode/gpt-5.6-luna",
+            "opencode/gpt-5.6-sol",
+            "opencode/gpt-5.6-terra",
+            "opencode/gpt-6-astra",
+            "opencode/grok-4.5",
+            "opencode/grok-4.6",
+            "opencode/grok-build-0.1",
+            "opencode/kimi-k2.5",
+            "opencode/kimi-k2.6",
+            "opencode/kimi-k2.7-code",
+            "opencode/kimi-k3",
+            "opencode/ling-3.0-flash-fin-free",
+            "opencode/mimo-v2.5-free",
+            "opencode/minimax-m2.5",
+            "opencode/minimax-m2.7",
+            "opencode/minimax-m3",
+            "opencode/muse-spark-1.2",
+            "opencode/muse-spark-1.2-contributor-free",
+            "opencode/muse-spark-1.3",
+            "opencode/muse-spark-1.3-contributor-free",
+            "opencode/nemotron-3-ultra-free",
+            "opencode/nemotron-3.5-lightning-free",
+            "opencode/qwen3.5-plus",
+            "opencode/qwen3.6-plus"
+          ]
+        }
+      ]
+    },
+    {
+      "provider": "kimi",
+      "label": "kimi",
+      "source": "quota-axi",
+      "windows": [],
+      "quotaSemantics": {
+        "status": "unknown",
+        "description": "kimi quota semantics supplied by quota-axi.",
+        "effectiveAvailability": []
+      },
+      "state": {
+        "status": "auth_required",
+        "stale": false,
+        "error": "kimi_credential_unavailable"
+      }
+    },
+    {
+      "provider": "zai",
+      "label": "zai",
+      "source": "quota-axi",
+      "windows": [],
+      "quotaSemantics": {
+        "status": "unknown",
+        "description": "zai quota semantics supplied by quota-axi.",
+        "effectiveAvailability": []
+      },
+      "state": {
+        "status": "auth_required",
+        "stale": false,
+        "error": "zai_credential_unavailable"
+      }
+    }
+  ],
+  "machine": {
+    "agents": 12,
+    "agentCeiling": 10,
+    "loadPerCore": 1.071,
+    "memoryFreePct": 1,
+    "suiteSlotFree": true
+  }
+}
+
