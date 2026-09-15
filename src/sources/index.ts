@@ -142,10 +142,9 @@ function mergeProviders(
 
 export async function collectUsage(options: CollectOptions): Promise<CollectResult> {
   // Measure the machine before spawning any of our own probes. The agent count
-  // must be the fleet `fm-capacity.sh` would see at the same instant, not
-  // usage-axi's transient `opencode models`/`openusage` children; taking the ps
-  // snapshots first removes the race entirely, and the probe-tree exclusion in
-  // `measureMachine` remains as a second guard.
+  // must not include usage-axi's transient `opencode models`/`openusage`
+  // children; taking the ps snapshots first removes the race entirely, and the
+  // probe-tree exclusion in `measureMachine` remains as a second guard.
   const machine = await measureMachine();
   const [openusage, quotaAxi, catalog] = await Promise.all([
     loadOpenUsage(options.force),

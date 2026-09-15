@@ -28,8 +28,10 @@ output is the quota-axi `schemaVersion` envelope extended additively so
   as `state.cacheStale`. A failed adapter must show up in the additive `sources[]` in
   `--json [--full]`, never silently downgrade the document.
 - Machine probes, ported from firstmate's `bin/fm-capacity-lib.sh` but not importing it:
-  `src/sources/machine.ts`. `readFleet` is the pure port of `fm_capacity_fleet_totals` and
-  `agents` is exactly that function's count (the ceiling's `across N agents` figure);
+  `src/sources/machine.ts`. `readFleet` uses the same adapter-name matcher, then counts
+  process-tree-aware *invocation* roots (matching descendants collapse; Cursor
+  private-worker / worker-start daemons are not task sessions). This diverges from
+  firstmate `fm_capacity_fleet_totals`, which still counts each matching process.
   `machine.roots`/`--json` lists every counted pid, comm basename, and matched adapter so the
   number is auditable. `measureMachine` excludes usage-axi's own probe tree
   (`processTreePids`) and `collectUsage` takes the ps snapshot before spawning any probe, so a
@@ -57,9 +59,10 @@ captures in `test/fixtures/` and feed it to the vendored selector.
   `USAGE_AXI_OPENCODE_MODELS`, `USAGE_AXI_MACHINE_JSON`, `USAGE_AXI_MACHINE_PS_COMM` /
   `USAGE_AXI_MACHINE_PS_ARGV` (replay a two-file `ps` snapshot), and the `*_BIN` overrides.
   These let the suite run on a host where `openusage` is absent.
-- `test/fixtures/machine/` holds real `ps` snapshots plus the `fm_capacity_fleet_totals`
-  golden count `test/sources/machine.test.ts` asserts `readFleet` reproduces. Its README
-  documents where a macOS capture (the 13-vs-10 case) goes: `mac-mini-<date>.{comm,argv}.ps`.
+- `test/fixtures/machine/` holds `ps` snapshots plus the invocation-root golden
+  `test/sources/machine.test.ts` asserts `readFleet` reproduces. Its README documents
+  firstmate `fm_capacity_fleet_totals` drift and where a macOS capture goes:
+  `mac-mini-<date>.{comm,argv}.ps`.
 - `test/support/fm-dispatch-select.mjs` is a pinned read-only copy of firstmate
   `origin/main`'s selector (MIT, Copyright (c) 2026 Kun Chen). The real selector on the Mac is
   the source of truth for parity; re-vendor only when the selector contract changes.

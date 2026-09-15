@@ -40,7 +40,7 @@ export function fixture(name: string): string {
 }
 
 /**
- * Real two-file ps snapshots plus the fork's golden count. See
+ * Two-file ps snapshots plus the invocation-root golden. See
  * `test/fixtures/machine/README.md`; a macOS capture in the same format goes
  * here as `<host>-<YYYYMMDD>.{comm.ps,argv.ps,json}` and is exercised
  * automatically.

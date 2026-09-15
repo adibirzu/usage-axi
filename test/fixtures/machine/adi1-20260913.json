@@ -9,9 +9,14 @@
   "redaction": "argv args truncated to 120 characters to keep worker prompts out of the repo; the fm_capacity_fleet_totals golden below is identical before and after truncation.",
   "golden": {
     "residentMb": 6634,
+    "agents": 10,
+    "procs": 19
+  },
+  "forkGolden": {
+    "residentMb": 6634,
     "agents": 11,
     "procs": 19
   },
-  "goldenSource": "git show origin/main:bin/fm-capacity-lib.sh (adibirzu/firstmate) -> fm_capacity_fleet_totals <comm> <argv>",
-  "note": "Real host snapshot. The grok TUI and codex/opencode/cline worker roots are genuine; no process was fabricated."
+  "goldenSource": "usage-axi invocation-root classifier (readFleet). forkGolden is git show origin/main:bin/fm-capacity-lib.sh (adibirzu/firstmate) -> fm_capacity_fleet_totals <comm> <argv>.",
+  "note": "Real host snapshot. The grok TUI and codex/opencode/cline worker roots are genuine; no process was fabricated. golden.agents drops the child `codex` (pid 1655309) under the node argv-codex wrapper (pid 1655268); firstmate still counts both."
 }

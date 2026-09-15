@@ -69,9 +69,46 @@ describe("worker-root agent counting", () => {
       "  201 node /Users/adi/.opencode/bin/opencode run",
       "  301 python -m pip install foo",
     ].join("\n");
-    // cursor-agent, opencode, node-argv-opencode, claude, pi-signed, codex.js = 6.
+    // cursor-agent, opencode (child node-argv collapsed), claude, pi-signed, codex.js = 5.
     // `pip` must never match `pi`, and the Cursor Helper must not match.
-    expect(countWorkerRoots(comm, argv)).toBe(6);
+    expect(countWorkerRoots(comm, argv)).toBe(5);
+  });
+
+  it("counts a Codex node wrapper, binary, and codex-code-mode-host as one invocation", () => {
+    const comm = [
+      "  100     1    4096 node",
+      "  101   100    8192 /opt/homebrew/bin/codex",
+      "  102   101    2048 /opt/homebrew/bin/codex-code-mode-host",
+    ].join("\n");
+    const argv = [
+      "  100 node /opt/homebrew/bin/codex",
+      "  101 /opt/homebrew/bin/codex",
+      "  102 /opt/homebrew/bin/codex-code-mode-host",
+    ].join("\n");
+    const fleet = readFleet(comm, argv);
+    expect(fleet.agents).toBe(1);
+    expect(fleet.roots).toEqual([{ pid: 100, comm: "node", match: "codex", via: "argv" }]);
+    expect(fleet.procs).toBe(3);
+  });
+
+  it("excludes Cursor private-worker and worker-start daemons but counts a standalone cursor-agent", () => {
+    const comm = [
+      "  100     1    1024 /Applications/Cursor.app/Contents/MacOS/Cursor",
+      "  101   100    2048 /Applications/Cursor.app/Contents/Frameworks/Cursor Helper",
+      "  110   100    4096 /Applications/Cursor.app/Contents/MacOS/cursor-agent",
+      "  111   110     512 /usr/local/bin/cursor-agent",
+      "  120     1    3072 /usr/local/bin/cursor-agent",
+      "  200     1    8192 /usr/local/bin/cursor-agent",
+    ].join("\n");
+    const argv = [
+      "  110 /Applications/Cursor.app/Contents/MacOS/cursor-agent worker start --worker-dir /Users/adi/project",
+      "  111 /usr/local/bin/cursor-agent",
+      "  120 /usr/local/bin/cursor-agent --use-system-ca private-worker",
+      "  200 /usr/local/bin/cursor-agent --print --trust",
+    ].join("\n");
+    const fleet = readFleet(comm, argv);
+    expect(fleet.agents).toBe(1);
+    expect(fleet.roots).toEqual([{ pid: 200, comm: "cursor-agent", match: "cursor-agent", via: "comm" }]);
   });
 
   it("returns null when the comm snapshot could not be read", () => {
@@ -98,15 +135,16 @@ describe("worker-root agent counting", () => {
     expect(tree.has(self + 1)).toBe(true);
     expect(tree.has(self + 2)).toBe(true);
     expect(tree.has(424242)).toBe(false);
-    // Without the exclusion the probe inflates the count; with it the unrelated
-    // opencode remains.
-    expect(countWorkerRoots(comm, argv)).toBe(3);
+    // Without the exclusion the probe inflates the count (the probe opencode
+    // and its node child collapse to one invocation, plus the unrelated
+    // opencode); with it the unrelated opencode remains.
+    expect(countWorkerRoots(comm, argv)).toBe(2);
     expect(countWorkerRoots(comm, argv, tree)).toBe(1);
   });
 });
 
-describe("fleet reading parity with fm_capacity_fleet_totals", () => {
-  it("reproduces the fork's golden on every real ps snapshot fixture", () => {
+describe("fleet reading invocation-root goldens", () => {
+  it("reproduces the invocation-root golden on every ps snapshot fixture", () => {
     const names = machineSnapshotNames();
     expect(names.length).toBeGreaterThan(0);
     for (const name of names) {

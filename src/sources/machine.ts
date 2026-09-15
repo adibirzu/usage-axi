@@ -189,6 +189,36 @@ function argvFrom(line: string): { pid: number; args: string } | null {
   return { pid: Number(match[1]), args: match[2] };
 }
 
+/**
+ * Cursor private-worker / worker-start processes are long-lived service
+ * daemons, not coding-agent task sessions. Token match on argv only, so a
+ * standalone `cursor-agent` task still counts. `private-worker` and
+ * `worker-start` are the flag forms; `worker … start` is the documented
+ * `agent worker start` subcommand (flags may sit between the two words).
+ */
+const CURSOR_DAEMON_TOKEN_RE = /\b(?:private[-_]worker|worker-start)\b/i;
+const CURSOR_WORKER_START_RE = /\bworker\b(?:\s+\S+)*\s+\bstart\b/i;
+
+function isCursorBackgroundDaemon(match: string, args: string): boolean {
+  if (match !== "cursor-agent") return false;
+  return CURSOR_DAEMON_TOKEN_RE.test(args) || CURSOR_WORKER_START_RE.test(args);
+}
+
+/** True when `pid` has an ancestor (not itself) in `targets`. Depth-capped. */
+function hasAncestorIn(
+  pid: number,
+  parent: ReadonlyMap<number, number>,
+  targets: ReadonlySet<number>,
+): boolean {
+  let current = parent.get(pid);
+  for (let depth = 0; depth < 64; depth += 1) {
+    if (current === undefined) return false;
+    if (targets.has(current)) return true;
+    current = parent.get(current);
+  }
+  return false;
+}
+
 /** The result of one fleet reading over two ps snapshots. */
 export type FleetReading = {
   agents: number | null;
@@ -229,19 +259,19 @@ export function processTreePids(commSnapshot: string | null, rootPid: number): S
 }
 
 /**
- * The pure port of firstmate's `fm_capacity_fleet_totals` matcher. `agents` is
- * exactly the count that function prints and the `across N agents` figure the
- * captain's ceiling is defined on; `procs` and `residentMb` are the same
- * whole-tree sums (resident kilobytes, integer-divided by 1024) so the reading
- * can be checked against the fork byte-for-byte. `roots` lists every counted
- * process so `machine.agents` is auditable.
+ * Invocation-root fleet reading. Adapter matching is the same doctrine as
+ * firstmate's `fm_capacity_fleet_totals` (basename, name-/_/. prefix, node/python
+ * argv), but `agents` is the number of harness *invocations*, not matching
+ * processes: a matching pid whose ancestor also matches is dropped, and Cursor
+ * private-worker / worker-start daemons are not task sessions. `procs` and
+ * `residentMb` still sum the whole tree under each remaining root (resident
+ * kilobytes, integer-divided by 1024). `roots` lists every counted invocation
+ * so `machine.agents` is auditable.
  *
- * A process is a root when its command basename names an adapter, or begins
- * with an adapter followed by `-`/`_`/`.`; when the basename is a bare
- * `node`/`python`, its argv must name an adapter as a whole path or word
- * component instead. Each matching process counts once. `excludePids` drops
- * usage-axi's own transient probe tree only (see `processTreePids`); it must
- * never exclude an unrelated agent the fork would count.
+ * This deliberately diverges from `fm_capacity_fleet_totals`, which still
+ * counts each matching process. Do not edit firstmate in this change.
+ * `excludePids` drops usage-axi's own transient probe tree only (see
+ * `processTreePids`); it must never exclude an unrelated agent.
  */
 export function readFleet(
   commSnapshot: string | null,
@@ -257,8 +287,8 @@ export function readFleet(
   const parent = new Map<number, number>();
   const size = new Map<number, number>();
   const known: number[] = [];
-  const root = new Set<number>();
-  const roots: AgentRoot[] = [];
+  const daemons = new Set<number>();
+  const matches: AgentRoot[] = [];
   for (const line of commSnapshot.split("\n")) {
     const parsed = parsePs(line);
     if (!parsed || excludePids.has(parsed.pid)) continue;
@@ -272,16 +302,23 @@ export function readFleet(
       match = argvNamesWorkerMatch(argv.get(parsed.pid) ?? "");
       via = "argv";
     }
-    if (match) {
-      root.add(parsed.pid);
-      roots.push({ pid: parsed.pid, comm: base, match, via });
+    if (!match) continue;
+    if (isCursorBackgroundDaemon(match, argv.get(parsed.pid) ?? "")) {
+      daemons.add(parsed.pid);
+      continue;
     }
+    matches.push({ pid: parsed.pid, comm: base, match, via });
   }
+  const matching = new Set(matches.map((entry) => entry.pid));
+  const roots = matches.filter(
+    (entry) => !hasAncestorIn(entry.pid, parent, matching) && !hasAncestorIn(entry.pid, parent, daemons),
+  );
+  const root = new Set(roots.map((entry) => entry.pid));
   let residentKb = 0;
   let procs = 0;
   for (const pid of known) {
-    // Walk to a fleet root, exactly like fm_capacity_fleet_totals. The depth cap
-    // keeps a corrupt or cyclic snapshot from spinning.
+    // Walk to an invocation root. The depth cap keeps a corrupt or cyclic
+    // snapshot from spinning.
     let current = pid;
     for (let depth = 0; depth < 64; depth += 1) {
       if (root.has(current)) {
@@ -298,9 +335,9 @@ export function readFleet(
 }
 
 /**
- * Count live worker roots with firstmate's adapter-name doctrine. Kept as the
- * narrow, exported entry point the existing snapshot tests use; `readFleet`
- * carries the same rule plus the auditable roots and the tree sums.
+ * Count live worker roots. Kept as the narrow, exported entry point the
+ * snapshot tests use; `readFleet` carries the same invocation-root rule plus
+ * the auditable roots and the tree sums.
  */
 export function countWorkerRoots(
   commSnapshot: string | null,
@@ -383,7 +420,7 @@ export async function measureMachine(): Promise<MachineCapacity> {
     coreCount && load !== null ? Math.round((load / coreCount) * 1000) / 1000 : null;
 
   // Exclude this process's own probe tree only for a live reading: the
-  // concurrent `opencode models` catalog read is a worker-root by the same rule
+  // concurrent `opencode models` catalog read matches the worker-name rule
   // but is not fleet work. A replayed snapshot is from another moment (possibly
   // another host), so its own pids must be counted exactly as captured. No
   // unrelated agent (an operator's grok/claude TUI, another worker) is ever
