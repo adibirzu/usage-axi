@@ -63,11 +63,17 @@ examples:
 usage: usage-axi machine [flags]
 description:
   Report local agents, agent ceiling, 1-minute load per core, memory free percent, and suite slot.
-  agents counts worker roots with fm-capacity-lib.sh's rule: a process whose command basename is a
-  firstmate adapter (claude, codex, opencode, pi, pi-signed, grok, kimi, cline, cursor-agent,
-  copilot, muse, agy), or begins with one followed by -/_/., or - for a bare node/python - whose
-  argv names an adapter; each matching process counts once. usage-axi's own transient probes (the
-  opencode models catalog read) are excluded, so the count matches fm-capacity.sh on the same host.
+  agents counts invocation roots: a process whose command basename is a firstmate adapter
+  (claude, codex, opencode, pi, pi-signed, grok, kimi, cline, cursor-agent, copilot, muse, agy),
+  or begins with one followed by -/_/., or - for a bare node/python - whose argv names an
+  adapter. Matching descendants of a matching ancestor collapse to one invocation (a Codex
+  node wrapper, codex binary, and codex-code-mode-host count as 1). Cursor private-worker /
+  worker-start daemons are not task sessions and are excluded; a standalone cursor-agent is
+  counted. usage-axi's own transient probes are excluded. This diverges from
+  fm_capacity_fleet_totals, which still counts each matching process. machine --json prints
+  roots: every counted pid with its comm basename and matched adapter.
+  Set USAGE_AXI_MACHINE_PS_COMM and USAGE_AXI_MACHINE_PS_ARGV to two ps snapshot files
+  (ps -ax -o pid=,ppid=,rss=,comm= and ps -ax -o pid=,args=) to replay a captured machine.
   memoryFreePct is the OS free-memory reading: macOS memory_pressure -Q free percent (falling back
   to vm_stat free+speculative), Linux MemAvailable as a share of MemTotal.
 flags[2]:

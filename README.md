@@ -16,13 +16,16 @@ agent-ergonomic CLIs - see [axi.md](https://axi.md/).
   provider OpenUsage reports with zero windows (an empty or failed refresh) is treated as
   lacking and filled from quota-axi.
 - **opencode-catalog** splits `opencode models` into the `opencode-go` and `opencode` pools.
-- **machine** measures the worker-root agent count (`fm-capacity-lib.sh`'s adapter-basename /
-  argv rule, excluding usage-axi's own transient probe processes), the agent ceiling, 1-minute load
-  per core, free-memory percent (macOS `memory_pressure -Q` free percent, else `vm_stat`
+- **machine** measures the invocation-root agent count (firstmate adapter-basename / argv
+  matching, then collapsing matching descendants of a matching ancestor so one harness
+  invocation counts once, excluding Cursor private-worker / worker-start daemons and
+  usage-axi's own transient probe processes), the agent ceiling, 1-minute load per core,
+  free-memory percent (macOS `memory_pressure -Q` free percent, else `vm_stat`
   free+speculative; Linux `MemAvailable`), and whether a test suite is running. `machine --json`
   lists every counted worker root in `roots[]` (pid, `comm` basename, matched adapter, and whether
-  it matched via `comm` or `argv`), so `agents` is auditable and matches `fm-capacity.sh` on the
-  same host. No launch arguments beyond the matched adapter name are emitted.
+  it matched via `comm` or `argv`), so `agents` is auditable. This diverges from
+  `fm_capacity_fleet_totals`, which still counts each matching process. No launch arguments
+  beyond the matched adapter name are emitted.
 
 usage-axi is data only. It never routes, recommends, proxies, logs in, refreshes credentials,
 or writes anything but its own cache. It never prints or stores credentials or account
