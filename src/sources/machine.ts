@@ -232,8 +232,7 @@ export type FleetReading = {
  * (`<pid> <ppid> <rss> <comm>` lines). Used to exclude usage-axi's own probe
  * processes from the agent count: `measureMachine` runs concurrently with the
  * `opencode models` catalog read, so without this the catalog's transient
- * `opencode` process counts as a fleet agent and inflates `agents` above what
- * `fm-capacity-lib.sh` (which spawns no probes) reports for the same instant.
+ * `opencode` process incorrectly counts as a fleet agent and inflates `agents`.
  */
 export function processTreePids(commSnapshot: string | null, rootPid: number): Set<number> {
   const tree = new Set<number>([rootPid]);
