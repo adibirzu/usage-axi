@@ -166,7 +166,54 @@ export type UsageResponse = {
   schemaVersion: 5;
   providers: ProviderQuota[];
   machine: MachineCapacity;
+  /** Additive routing data; usage-axi never performs the switch itself. */
+  routing?: RoutingReport;
   help?: string[];
+};
+
+/** A source-backed observation behind a route-family availability verdict. */
+export type RouteOutcomeEvidence = {
+  source: ProviderQuota["source"];
+  provider: ProviderId;
+  stateStatus: ProviderStatus;
+  windowId?: string;
+  percentRemaining?: number;
+};
+
+export type RouteOutcome = {
+  status: "available" | "blocked" | "unknown";
+  reason: "quota_available" | "quota_exhausted" | "rate_limited" | "telemetry_unavailable";
+  provider?: ProviderId;
+  windows: string[];
+  evidence: RouteOutcomeEvidence[];
+};
+
+/** A concrete OpenCode route family as identified by its catalog and telemetry. */
+export type RouteFamily = {
+  id: "opencode-go" | "zen";
+  outcome: RouteOutcome;
+};
+
+/**
+ * A declarative instruction for a router that supports in-run fallbacks.
+ * The instruction is data only: consumers record a route switch in their own
+ * task telemetry, preserving usage-axi's no-routing invariant.
+ */
+export type FallbackPolicy = {
+  from: Array<{ routeFamily: RouteFamily["id"]; outcome: "blocked" }>;
+  target: {
+    provider: "litellm";
+    model: "qwen3.8-flash";
+    availability: "catalog_available" | "unavailable";
+    localOnly: true;
+  };
+  preserve: ["taskId", "reasoningClass"];
+  onTargetUnavailable: "fail";
+};
+
+export type RoutingReport = {
+  routeFamilies: RouteFamily[];
+  fallbackPolicies: FallbackPolicy[];
 };
 
 /** A row in `usage-axi sources`: which adapter served what, and how fresh. */
