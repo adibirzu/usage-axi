@@ -46,8 +46,8 @@ output is the quota-axi `schemaVersion` envelope extended additively so
 
 - Never print or store credentials or account identity. Only percentages, window bounds,
   reset times, and pool model ids leave the tool. `test/sources/quota-axi.test.ts` guards it.
-- usage-axi is data only: no routing, recommendations, credential refresh, or provider
-  mutation.
+- usage-axi is data only: it reports declarative routing evidence but never selects or switches
+  a route, recommends, refreshes credentials, or mutates a provider.
 - Default output is TOON; `--json` is the contract; `--full` adds provenance and pool model ids.
 - Exit codes: 0 success, 1 no provider returned data (or doctor found no source), 2 usage error.
 - No interactive prompts, ever.
