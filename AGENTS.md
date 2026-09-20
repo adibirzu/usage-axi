@@ -21,6 +21,9 @@ output is the quota-axi `schemaVersion` envelope extended additively so
 - Merge rule (OpenUsage windows win; quota-axi may only supply semantics with no dangling
   window join; a provider OpenUsage reports with zero windows is filled from quota-axi):
   `mergeProviders`/`adoptSemantics` in `src/sources/index.ts`.
+- Additive OpenCode route-family evidence and the local-only fallback declaration:
+  `src/routing.ts`. It reports data for a consumer to act on; usage-axi never performs the
+  switch or records a task event itself.
 - A cold `openusage` read is cache-first (no `--force`) and gets a 180s ceiling
   (`DEFAULT_OPENUSAGE_TIMEOUT_MS`, override `USAGE_AXI_OPENUSAGE_TIMEOUT_MS` in
   `src/sources/openusage.ts`). OpenUsage's own `provider.stale` is a cache-TTL flag and must

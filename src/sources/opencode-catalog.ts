@@ -5,6 +5,8 @@ export type OpencodeCatalogLoad =
   | {
       ok: true;
       total: number;
+      /** Raw public model ids; routing derives only route-family capabilities. */
+      models: string[];
       pools: { id: string; label: string; models: string[] }[];
       otherCount: number;
     }
@@ -48,5 +50,5 @@ export async function loadOpencodeCatalog(): Promise<OpencodeCatalogLoad> {
   }));
   const otherCount = models.length - pools.reduce((sum, pool) => sum + pool.models.length, 0);
 
-  return { ok: true, total: models.length, pools, otherCount };
+  return { ok: true, total: models.length, models, pools, otherCount };
 }
