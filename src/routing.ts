@@ -47,8 +47,9 @@ function routeOutcome(provider: ProviderQuota | undefined): RouteOutcome {
       evidence: [{ source: provider.source, provider: provider.provider, stateStatus: provider.state.status }],
     };
   }
-  if (exhausted.length) return { status: "blocked", reason: "quota_exhausted", ...base };
-  if (provider.state.status === "fresh" && provider.windows.some((window) => window.percentRemaining !== undefined)) {
+  const freshTelemetry = provider.state.status === "fresh" && !provider.state.stale;
+  if (freshTelemetry && exhausted.length) return { status: "blocked", reason: "quota_exhausted", ...base };
+  if (freshTelemetry && provider.windows.some((window) => window.percentRemaining !== undefined)) {
     return {
       status: "available",
       reason: "quota_available",
