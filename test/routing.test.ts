@@ -112,6 +112,32 @@ describe("OpenCode local-Qwen routing contract", () => {
     expect(routing.routeFamilies).not.toContainEqual(expect.objectContaining({ id: "opencode-go" }));
   });
 
+  it("does not treat an errored zero-window observation as exhaustion", async () => {
+    const routing = await routingFrom(
+      {
+        generatedAt: STAMP,
+        providers: [{
+          provider: "opencode",
+          plan: "Go",
+          state: { status: "error", stale: true, error: "telemetry refresh failed" },
+          windows: [{ id: "weekly", percentRemaining: 0 }],
+        }],
+      },
+      ["opencode-go/qwen3.8-flash", "qwen38fn/qwen3.8-flash"],
+    );
+
+    expect(routing.routeFamilies).toContainEqual({
+      id: "opencode-go",
+      outcome: {
+        status: "unknown",
+        reason: "telemetry_unavailable",
+        provider: "opencode",
+        windows: ["weekly"],
+        evidence: [{ source: "quota-axi", provider: "opencode", stateStatus: "error" }],
+      },
+    });
+  });
+
   it("makes missing local Qwen loud and never names a hosted escalation", async () => {
     const routing = await routingFrom(
       { generatedAt: STAMP, providers: [] },
