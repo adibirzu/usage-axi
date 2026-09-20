@@ -66,14 +66,17 @@ function routeOutcome(provider: ProviderQuota | undefined): RouteOutcome {
   };
 }
 
-function zenProvider(providers: ProviderQuota[]): ProviderQuota | undefined {
+function zenProvider(providers: ProviderQuota[], catalog: OpencodeCatalogLoad): ProviderQuota | undefined {
+  if (!hasZenCatalogModel(catalog)) return undefined;
   return providers.find((provider) => provider.provider === "zen") ?? providers.find(
     (provider) => provider.provider === "opencode" && /\bzen\b/i.test(`${provider.label} ${provider.plan ?? ""}`),
   );
 }
 
-function goProvider(providers: ProviderQuota[]): ProviderQuota | undefined {
-  return providers.find((provider) => provider.provider === "opencode-go") ?? providers.find(
+function goProvider(providers: ProviderQuota[], catalog: OpencodeCatalogLoad): ProviderQuota | undefined {
+  const named = providers.find((provider) => provider.provider === "opencode-go");
+  if (named || !hasGoCatalogModel(catalog)) return named;
+  return providers.find(
     (provider) => provider.provider === "opencode" && /\bgo\b/i.test(`${provider.label} ${provider.plan ?? ""}`),
   );
 }
@@ -84,8 +87,8 @@ function goProvider(providers: ProviderQuota[]): ProviderQuota | undefined {
  * to launch, retry, or switch a model from usage-axi.
  */
 export function buildRoutingReport(providers: ProviderQuota[], catalog: OpencodeCatalogLoad): RoutingReport {
-  const go = goProvider(providers);
-  const zen = zenProvider(providers);
+  const go = goProvider(providers, catalog);
+  const zen = zenProvider(providers, catalog);
   const routeFamilies: RouteFamily[] = [];
   if (go || hasGoCatalogModel(catalog)) routeFamilies.push({ id: "opencode-go", outcome: routeOutcome(go) });
   if (zen || hasZenCatalogModel(catalog)) routeFamilies.push({ id: "zen", outcome: routeOutcome(zen) });
