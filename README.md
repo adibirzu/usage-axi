@@ -27,8 +27,9 @@ agent-ergonomic CLIs - see [axi.md](https://axi.md/).
   `fm_capacity_fleet_totals`, which still counts each matching process. No launch arguments
   beyond the matched adapter name are emitted.
 
-usage-axi is data only. It never routes, recommends, proxies, logs in, refreshes credentials,
-or writes anything but its own cache. It never prints or stores credentials or account
+usage-axi is data only. It reports routing evidence and declarative fallback policy but never
+selects or switches a route, recommends, proxies, logs in, refreshes credentials, or writes
+anything but its own cache. It never prints or stores credentials or account
 identity: only percentages, window bounds, reset times, and pool model ids.
 
 ## Install
