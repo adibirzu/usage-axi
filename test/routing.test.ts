@@ -95,6 +95,23 @@ describe("OpenCode local-Qwen routing contract", () => {
     });
   });
 
+  it("requires matching catalog capability before generic OpenCode labels imply a route family", async () => {
+    const routing = await routingFrom(
+      {
+        generatedAt: STAMP,
+        providers: [{
+          provider: "opencode",
+          plan: "Go",
+          state: { status: "fresh", stale: false },
+          windows: [{ id: "weekly", percentRemaining: 0 }],
+        }],
+      },
+      ["qwen38fn/qwen3.8-flash"],
+    );
+
+    expect(routing.routeFamilies).not.toContainEqual(expect.objectContaining({ id: "opencode-go" }));
+  });
+
   it("makes missing local Qwen loud and never names a hosted escalation", async () => {
     const routing = await routingFrom(
       { generatedAt: STAMP, providers: [] },
