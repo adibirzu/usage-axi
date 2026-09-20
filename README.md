@@ -145,7 +145,7 @@ by this report.
 
 OpenCode Go is identified by an `opencode-go` provider, or by an `opencode` provider labelled
 or planned `Go`, together with its `opencode-go/` models. Zen is identified only by an
-`opencode` provider labelled `Zen` (or provider `zen`) and its `vllm/zen-` catalog models. A
+`opencode` provider labelled or planned `Zen` (or provider `zen`) and its `vllm/zen-` catalog models. A
 zero live window or `state.status: "rate_limited"` is the only
 blocked verdict; missing telemetry is `unknown`, never a guessed exhaustion. `catalog_available`
 means the OpenCode catalog exposes a known local-Qwen gateway alias (`qwen38fn/qwen3.8-flash`,
