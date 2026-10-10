@@ -21,6 +21,9 @@ output is the quota-axi `schemaVersion` envelope extended additively so
 - Merge rule (OpenUsage windows win; quota-axi may only supply semantics with no dangling
   window join; a provider OpenUsage reports with zero windows is filled from quota-axi):
   `mergeProviders`/`adoptSemantics` in `src/sources/index.ts`.
+- Additive OpenCode route-family evidence and the local-only fallback declaration:
+  `src/routing.ts`. It reports data for a consumer to act on; usage-axi never performs the
+  switch or records a task event itself.
 - A cold `openusage` read is cache-first (no `--force`) and gets a 180s ceiling
   (`DEFAULT_OPENUSAGE_TIMEOUT_MS`, override `USAGE_AXI_OPENUSAGE_TIMEOUT_MS` in
   `src/sources/openusage.ts`). OpenUsage's own `provider.stale` is a cache-TTL flag and must
@@ -43,8 +46,8 @@ output is the quota-axi `schemaVersion` envelope extended additively so
 
 - Never print or store credentials or account identity. Only percentages, window bounds,
   reset times, and pool model ids leave the tool. `test/sources/quota-axi.test.ts` guards it.
-- usage-axi is data only: no routing, recommendations, credential refresh, or provider
-  mutation.
+- usage-axi is data only: it reports declarative routing evidence but never selects or switches
+  a route, recommends, refreshes credentials, or mutates a provider.
 - Default output is TOON; `--json` is the contract; `--full` adds provenance and pool model ids.
 - Exit codes: 0 success, 1 no provider returned data (or doctor found no source), 2 usage error.
 - No interactive prompts, ever.

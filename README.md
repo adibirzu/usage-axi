@@ -27,8 +27,9 @@ agent-ergonomic CLIs - see [axi.md](https://axi.md/).
   `fm_capacity_fleet_totals`, which still counts each matching process. No launch arguments
   beyond the matched adapter name are emitted.
 
-usage-axi is data only. It never routes, recommends, proxies, logs in, refreshes credentials,
-or writes anything but its own cache. It never prints or stores credentials or account
+usage-axi is data only. It reports routing evidence and declarative fallback policy but never
+selects or switches a route, recommends, proxies, logs in, refreshes credentials, or writes
+anything but its own cache. It never prints or stores credentials or account
 identity: only percentages, window bounds, reset times, and pool model ids.
 
 ## Install
@@ -98,6 +99,60 @@ The default `--json` already carries the 15 fields `fm-dispatch-select.mjs` read
 `sources[]` provenance list are additive and ignored by the selector. `sources[]` carries the
 per-adapter status/detail so a degraded adapter is visible in the `--json --full` document
 itself.
+
+### OpenCode local-Qwen fallback policy
+
+`--json --full` also emits an additive `routing` report for a router that supports in-run
+model switches. usage-axi remains data only: it does not retry, select, or launch a route. The
+router records its own task outcome and route-switch event, using the source evidence supplied
+by this report.
+
+```jsonc
+{
+  "routing": {
+    "routeFamilies": [{
+      "id": "opencode-go",             // or "zen"
+      "outcome": {
+        "status": "blocked",           // "available" or "unknown"
+        "reason": "quota_exhausted",   // "rate_limited" or "telemetry_unavailable"
+        "provider": "opencode-go",
+        "windows": ["weekly"],
+        "evidence": [{
+          "source": "quota-axi",
+          "provider": "opencode-go",
+          "stateStatus": "fresh",
+          "windowId": "weekly",
+          "percentRemaining": 0
+        }]
+      }
+    }],
+    "fallbackPolicies": [{
+      "from": [
+        { "routeFamily": "opencode-go", "outcome": "blocked" },
+        { "routeFamily": "zen", "outcome": "blocked" }
+      ],
+      "target": {
+        "provider": "litellm",
+        "model": "qwen3.8-flash",
+        "availability": "catalog_available", // or "unavailable"
+        "localOnly": true
+      },
+      "preserve": ["taskId", "reasoningClass"],
+      "onTargetUnavailable": "fail"
+    }]
+  }
+}
+```
+
+OpenCode Go is identified by an `opencode-go` provider, or by an `opencode` provider labelled
+or planned `Go`, together with its `opencode-go/` models. Zen is identified only by an
+`opencode` provider labelled or planned `Zen` (or provider `zen`) and its `vllm/zen-` catalog models. A
+zero live window or `state.status: "rate_limited"` is the only
+blocked verdict; missing telemetry is `unknown`, never a guessed exhaustion. `catalog_available`
+means the OpenCode catalog exposes a known local-Qwen gateway alias (`qwen38fn/qwen3.8-flash`,
+`vllm/qwen3.8-flash`, or `vllm/auto-code`); the consumer must still prove its own gateway call.
+If the target is unavailable, `onTargetUnavailable: "fail"` prohibits a silent hosted or paid
+escalation.
 
 ### Window-id mapping (OpenUsage resource → quota-axi window id)
 

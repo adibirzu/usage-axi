@@ -208,6 +208,7 @@ export function toJsonObject(
     schemaVersion: response.schemaVersion,
     providers,
     machine: response.machine,
+    ...(full && response.routing ? { routing: response.routing } : {}),
     ...(reports ? { sources: reports } : {}),
   };
 }
