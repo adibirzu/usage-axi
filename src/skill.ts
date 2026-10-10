@@ -29,8 +29,9 @@ ${DESCRIPTION}
 
 You do not need usage-axi installed globally - invoke it with \`npx -y usage-axi\`.
 
-usage-axi is data only: it never routes, recommends, proxies, logs in, refreshes
-credentials, or mutates provider state. It reads the OpenUsage CLI, quota-axi, the
+usage-axi is data only: it reports declarative routing evidence but never selects or
+switches a route, recommends, proxies, logs in, refreshes credentials, or mutates provider
+state. It reads the OpenUsage CLI, quota-axi, the
 \`opencode models\` catalog, and the local machine, then prints what it found.
 
 ## When to use
@@ -44,7 +45,8 @@ remaining quota, or model pools, or when a router needs the quota-axi JSON contr
 1. Run \`npx -y usage-axi\` for compact TOON output.
 2. Pass \`--json --full\` for the quota-axi JSON contract that \`fm-dispatch-select.mjs select
    --quota-json\` accepts unchanged. The default \`--json\` already carries the 15 fields the
-   selector reads; \`--full\` adds provenance attempts and the full pool model ids.
+   selector reads; \`--full\` adds provenance attempts, full pool model ids, and declarative
+   OpenCode fallback evidence for a consumer to act on.
 3. Pass \`--provider claude,cursor\` to scope providers, and \`--force\` to bypass OpenUsage's
    five-minute cache and refresh now.
 4. Run \`npx -y usage-axi machine\` for the capacity verdict used by agent admission:

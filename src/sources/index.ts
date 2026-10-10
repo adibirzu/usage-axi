@@ -11,6 +11,7 @@ import { loadOpenUsage } from "./openusage.js";
 import { loadOpencodeCatalog } from "./opencode-catalog.js";
 import { loadQuotaAxi } from "./quota-axi.js";
 import { measureMachine } from "./machine.js";
+import { buildRoutingReport } from "../routing.js";
 
 export type CollectOptions = {
   force: boolean;
@@ -204,6 +205,7 @@ export async function collectUsage(options: CollectOptions): Promise<CollectResu
     schemaVersion: 5,
     providers,
     machine,
+    routing: buildRoutingReport(providers, catalog),
   };
   return { response, reports };
 }
