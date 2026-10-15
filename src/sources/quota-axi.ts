@@ -133,7 +133,12 @@ export async function loadQuotaAxi(): Promise<QuotaAxiLoad> {
     text = read;
   } else {
     const binary = process.env["USAGE_AXI_QUOTA_AXI_BIN"] || "quota-axi";
-    const result = await runCapture(binary, ["--json"]);
+    // Exit 1 means no provider returned usable data, but its JSON still
+    // explains unavailable/auth/stale states. Keep that evidence and validate
+    // it below, without permitting the producer to renew credentials.
+    const result = await runCapture(binary, ["--json", "--no-credential-refresh"], {
+      acceptedExitCodes: [1],
+    });
     if (!result.ok) return { ok: false, reason: `quota-axi unavailable: ${result.reason}` };
     text = result.stdout;
   }

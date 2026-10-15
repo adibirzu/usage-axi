@@ -1,0 +1,21 @@
+{
+  "generatedAt": "2026-10-15T22:19:33.630Z",
+  "schemaVersion": 5,
+  "providers": [
+    {
+      "provider": "codex",
+      "label": "Codex",
+      "source": "oauth",
+      "windows": [],
+      "state": {
+        "status": "error",
+        "stale": false,
+        "error": "Codex quota unavailable",
+        "sourcesTried": ["oauth"]
+      },
+      "attempts": [
+        { "source": "oauth", "status": "failed", "error": "Codex quota unavailable" }
+      ]
+    }
+  ]
+}

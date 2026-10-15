@@ -6,13 +6,13 @@ export type CaptureResult =
 
 /**
  * Run one command and capture stdout. Never throws: a missing binary, a
- * non-zero exit, or a timeout is reported as `{ ok: false, reason }` so an
+ * unaccepted non-zero exit, or a timeout is reported as `{ ok: false, reason }` so an
  * adapter can fail that source without taking the whole report down.
  */
 export function runCapture(
   file: string,
   args: string[],
-  options: { timeoutMs?: number; includeStderr?: boolean } = {},
+  options: { timeoutMs?: number; includeStderr?: boolean; acceptedExitCodes?: readonly number[] } = {},
 ): Promise<CaptureResult> {
   return new Promise((resolve) => {
     execFile(
@@ -25,7 +25,12 @@ export function runCapture(
         env: process.env,
       },
       (error, stdout, stderr) => {
-        if (error) {
+        // Some data-producing CLIs emit a valid report on a documented
+        // nonzero exit. Opt in per caller; signals/timeouts/missing binaries
+        // still fail, and the caller must validate the captured payload.
+        const code = (error as { code?: unknown } | null)?.code;
+        const acceptedExit = typeof code === "number" && options.acceptedExitCodes?.includes(code);
+        if (error && !acceptedExit) {
           const reason =
             (error as NodeJS.ErrnoException).code === "ENOENT"
               ? `${file} is not installed`
