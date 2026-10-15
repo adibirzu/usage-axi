@@ -21,6 +21,8 @@ output is the quota-axi `schemaVersion` envelope extended additively so
 - Merge rule (OpenUsage windows win; quota-axi may only supply semantics with no dangling
   window join; a provider OpenUsage reports with zero windows is filled from quota-axi):
   `mergeProviders`/`adoptSemantics` in `src/sources/index.ts`.
+- Read-only quota-axi invocation and parsing of its documented no-data exit 1:
+  `src/sources/quota-axi.ts`; executable/selector regressions: `test/quota-axi-cli.test.ts`.
 - Additive OpenCode route-family evidence and the local-only fallback declaration:
   `src/routing.ts`. It reports data for a consumer to act on; usage-axi never performs the
   switch or records a task event itself.
