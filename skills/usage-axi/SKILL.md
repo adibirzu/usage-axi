@@ -32,7 +32,9 @@ remaining quota, or model pools, or when a router needs the quota-axi JSON contr
 3. Pass `--provider claude,cursor` to scope providers, and `--force` to bypass OpenUsage's
    five-minute cache and refresh now.
 4. Run `npx -y usage-axi machine` for the capacity verdict used by agent admission:
-   `agents` against `agentCeiling`, `loadPerCore`, `memoryFreePct`, and `suiteSlotFree`.
+   `agents` against `agentCeiling`, `loadPerCore`, `memoryFreePct`, `suiteSlotFree`,
+   and local llama.cpp slots (`llamaSlotsBusy`/`llamaSlotsTotal`, ceiling `llamaParallel`=2).
+   Before raising another OpenCode/local-qwen agent, refuse when `llamaSlotFree` is false.
 5. Run `npx -y usage-axi sources` to see which adapter served which provider and how fresh it is.
 6. Run `npx -y usage-axi doctor` to check source availability; exit 1 means no usage source was available.
 

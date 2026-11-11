@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   countWorkerRoots,
+  foldLlamaSlots,
   measureMachine,
   parseMemoryPressureFreePct,
   processTreePids,
@@ -213,5 +214,44 @@ describe("macOS memory free percentage", () => {
     expect(parseMemoryPressureFreePct(report)).toBe(22);
     expect(parseMemoryPressureFreePct("no reading here")).toBeNull();
     expect(parseMemoryPressureFreePct("System-wide memory free percentage: 140%")).toBeNull();
+  });
+});
+
+
+describe("llama slots", () => {
+  it("folds a dual-slot /slots payload into busy/free", () => {
+    const reading = foldLlamaSlots(2, [
+      { id: 0, is_processing: true, n_ctx: 131072 },
+      { id: 1, is_processing: false, n_ctx: 131072 },
+    ]);
+    expect(reading.llamaSlotsTotal).toBe(2);
+    expect(reading.llamaSlotsBusy).toBe(1);
+    expect(reading.llamaSlotFree).toBe(true);
+  });
+
+  it("marks both slots busy when is_processing is true on each", () => {
+    const reading = foldLlamaSlots(2, [
+      { id: 0, is_processing: true },
+      { id: 1, is_processing: true },
+    ]);
+    expect(reading.llamaSlotsBusy).toBe(2);
+    expect(reading.llamaSlotFree).toBe(false);
+  });
+
+  it("returns nulls for an unreadable payload", () => {
+    expect(foldLlamaSlots(2, null)).toEqual({
+      llamaSlotsTotal: null,
+      llamaSlotsBusy: null,
+      llamaSlotFree: null,
+    });
+  });
+
+  it("reports llamaParallel=2 from config when measuring live", async () => {
+    process.env["USAGE_AXI_LLAMA_SLOTS_BUSY"] = "0";
+    const machine = await measureMachine();
+    expect(machine.llamaParallel).toBe(2);
+    expect(machine.llamaSlotsTotal).toBe(2);
+    expect(machine.llamaSlotsBusy).toBe(0);
+    expect(machine.llamaSlotFree).toBe(true);
   });
 });

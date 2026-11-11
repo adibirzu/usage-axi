@@ -98,6 +98,10 @@ export const MACHINE_FIXTURE = {
   loadPerCore: 0.06,
   memoryFreePct: 58.9,
   suiteSlotFree: true,
+  llamaParallel: 2,
+  llamaSlotsTotal: 2,
+  llamaSlotsBusy: 0,
+  llamaSlotFree: true,
 };
 
 /** Build the exact `usage-axi --json [--full]` payload for a set of sources. */

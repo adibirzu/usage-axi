@@ -181,7 +181,7 @@ export async function collectUsage(options: CollectOptions): Promise<CollectResu
   reports.push({
     source: "machine",
     status: "available",
-    detail: `agents=${machine.agents ?? "unknown"} ceiling=${machine.agentCeiling} loadPerCore=${machine.loadPerCore ?? "unknown"} memoryFreePct=${machine.memoryFreePct ?? "unknown"} suiteSlotFree=${machine.suiteSlotFree ?? "unknown"}`,
+    detail: `agents=${machine.agents ?? "unknown"} ceiling=${machine.agentCeiling} loadPerCore=${machine.loadPerCore ?? "unknown"} memoryFreePct=${machine.memoryFreePct ?? "unknown"} suiteSlotFree=${machine.suiteSlotFree ?? "unknown"} llama=${machine.llamaSlotsBusy ?? "?"}/${machine.llamaSlotsTotal ?? machine.llamaParallel ?? "?"} free=${machine.llamaSlotFree ?? "unknown"}`,
   });
 
   const openusageProviders = openusage.ok ? openusage.providers : [];
