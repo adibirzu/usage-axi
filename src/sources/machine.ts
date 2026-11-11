@@ -371,6 +371,122 @@ function agentCeiling(): number {
   return 10;
 }
 
+/** Configured llama.cpp --parallel ceiling (adi1 qwen38fn fleet). */
+function llamaParallel(): number {
+  const env = process.env["USAGE_AXI_LLAMA_PARALLEL"];
+  if (env && /^\d+$/.test(env) && Number(env) > 0) return Number(env);
+  const config = join(homedir(), ".config", "usage-axi", "config.json");
+  const read = readJsonFile(config);
+  if (read.ok && read.value && typeof read.value === "object") {
+    const value = (read.value as Record<string, unknown>)["llamaParallel"];
+    if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
+  }
+  return 2;
+}
+
+function llamaSlotsUrl(): string | null {
+  const env = process.env["USAGE_AXI_LLAMA_SLOTS_URL"];
+  if (env === "off" || env === "0") return null;
+  if (env && env.length > 0) return env;
+  const config = join(homedir(), ".config", "usage-axi", "config.json");
+  const read = readJsonFile(config);
+  if (read.ok && read.value && typeof read.value === "object") {
+    const value = (read.value as Record<string, unknown>)["llamaSlotsUrl"];
+    if (value === null || value === "off") return null;
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+  // Tailscale IP for adi1 llama-server (matches OpenCode qwen38fn baseURL).
+  return "http://100.85.233.75:30000/slots";
+}
+
+export type LlamaSlotReading = {
+  llamaParallel: number;
+  llamaSlotsTotal: number | null;
+  llamaSlotsBusy: number | null;
+  llamaSlotFree: boolean | null;
+};
+
+/**
+ * Probe llama.cpp `/slots`. Pure enough to unit-test the busy/free fold once a
+ * payload is in hand; the HTTP fetch is the only I/O.
+ */
+export function foldLlamaSlots(
+  parallel: number,
+  payload: unknown,
+): Omit<LlamaSlotReading, "llamaParallel"> {
+  if (!Array.isArray(payload) || payload.length === 0) {
+    return { llamaSlotsTotal: null, llamaSlotsBusy: null, llamaSlotFree: null };
+  }
+  let busy = 0;
+  for (const slot of payload) {
+    if (!slot || typeof slot !== "object") continue;
+    if ((slot as { is_processing?: unknown }).is_processing === true) busy += 1;
+  }
+  const total = payload.length;
+  return {
+    llamaSlotsTotal: total,
+    llamaSlotsBusy: busy,
+    llamaSlotFree: busy < total,
+  };
+}
+
+async function probeLlamaSlots(): Promise<LlamaSlotReading> {
+  const parallel = llamaParallel();
+  const overrideBusy = process.env["USAGE_AXI_LLAMA_SLOTS_BUSY"];
+  if (overrideBusy !== undefined) {
+    if (overrideBusy === "unknown") {
+      return {
+        llamaParallel: parallel,
+        llamaSlotsTotal: null,
+        llamaSlotsBusy: null,
+        llamaSlotFree: null,
+      };
+    }
+    if (/^\d+$/.test(overrideBusy)) {
+      const busy = Number(overrideBusy);
+      const total = parallel;
+      return {
+        llamaParallel: parallel,
+        llamaSlotsTotal: total,
+        llamaSlotsBusy: busy,
+        llamaSlotFree: busy < total,
+      };
+    }
+  }
+  const url = llamaSlotsUrl();
+  if (!url) {
+    return {
+      llamaParallel: parallel,
+      llamaSlotsTotal: null,
+      llamaSlotsBusy: null,
+      llamaSlotFree: null,
+    };
+  }
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1500);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!response.ok) {
+      return {
+        llamaParallel: parallel,
+        llamaSlotsTotal: null,
+        llamaSlotsBusy: null,
+        llamaSlotFree: null,
+      };
+    }
+    const payload: unknown = await response.json();
+    return { llamaParallel: parallel, ...foldLlamaSlots(parallel, payload) };
+  } catch {
+    return {
+      llamaParallel: parallel,
+      llamaSlotsTotal: null,
+      llamaSlotsBusy: null,
+      llamaSlotFree: null,
+    };
+  }
+}
+
 function fixtureMachine(): MachineCapacity | null {
   const fixture = process.env["USAGE_AXI_MACHINE_JSON"];
   if (!fixture) return null;
@@ -384,6 +500,10 @@ function fixtureMachine(): MachineCapacity | null {
     loadPerCore: num("loadPerCore"),
     memoryFreePct: num("memoryFreePct"),
     suiteSlotFree: typeof raw["suiteSlotFree"] === "boolean" ? (raw["suiteSlotFree"] as boolean) : null,
+    llamaParallel: num("llamaParallel") ?? llamaParallel(),
+    llamaSlotsTotal: num("llamaSlotsTotal"),
+    llamaSlotsBusy: num("llamaSlotsBusy"),
+    llamaSlotFree: typeof raw["llamaSlotFree"] === "boolean" ? (raw["llamaSlotFree"] as boolean) : null,
   };
   return machine;
 }
@@ -412,7 +532,12 @@ export async function measureMachine(): Promise<MachineCapacity> {
   const fixture = fixtureMachine();
   if (fixture) return fixture;
 
-  const [coreCount, load, freePct] = await Promise.all([cores(), load1(), memoryFreePct()]);
+  const [coreCount, load, freePct, llama] = await Promise.all([
+    cores(),
+    load1(),
+    memoryFreePct(),
+    probeLlamaSlots(),
+  ]);
   const { comm: commSnapshot, argv: argvSnapshot, live } = await psSnapshots();
 
   const loadPerCore =
@@ -433,6 +558,10 @@ export async function measureMachine(): Promise<MachineCapacity> {
     loadPerCore,
     memoryFreePct: freePct,
     suiteSlotFree: suiteSlotFree(argvSnapshot),
+    llamaParallel: llama.llamaParallel,
+    llamaSlotsTotal: llama.llamaSlotsTotal,
+    llamaSlotsBusy: llama.llamaSlotsBusy,
+    llamaSlotFree: llama.llamaSlotFree,
     roots: fleet.roots,
   };
 }

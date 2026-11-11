@@ -156,6 +156,16 @@ export type MachineCapacity = {
   loadPerCore: number | null;
   memoryFreePct: number | null;
   suiteSlotFree: boolean | null;
+  /**
+   * Local llama.cpp server parallel slots (adi1 qwen38fn). `llamaParallel` is
+   * the configured ceiling (default 2); `llamaSlotsBusy` / `llamaSlotFree` come
+   * from a live `/slots` probe. Unreadable probes leave these null so callers
+   * never refuse on a missing signal.
+   */
+  llamaParallel?: number | null;
+  llamaSlotsTotal?: number | null;
+  llamaSlotsBusy?: number | null;
+  llamaSlotFree?: boolean | null;
   /** Additive: the counted roots behind `agents`, in ps snapshot order. */
   roots?: AgentRoot[];
 };
