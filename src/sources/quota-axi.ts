@@ -137,6 +137,8 @@ export async function loadQuotaAxi(): Promise<QuotaAxiLoad> {
     // explains unavailable/auth/stale states. Keep that evidence and validate
     // it below, without permitting the producer to renew credentials.
     const result = await runCapture(binary, ["--json", "--no-credential-refresh"], {
+      // The full producer can outlast one provider's documented 15s request.
+      timeoutMs: 30_000,
       acceptedExitCodes: [1],
     });
     if (!result.ok) return { ok: false, reason: `quota-axi unavailable: ${result.reason}` };
