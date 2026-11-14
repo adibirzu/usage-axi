@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3
+
+Changes since 0.1.2 (`cef0753`).
+
+- **quota-axi:** raise child-process read deadline to 30s so multi-provider runs exceeding 15s retain valid telemetry while still failing closed past budget (#10), and preserve read-only producer failure evidence (`14e3776`).
+- **machine:** probe local `llama.cpp` parallel slots for capacity telemetry (`908b5c2`).
+- **docs:** consolidate canonical project agent guidance in `AGENTS.md`.
+
 ## 0.1.2
 
 Changes since the `b140738` installer pin (0.1.1).
