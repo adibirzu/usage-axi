@@ -371,7 +371,7 @@ function agentCeiling(): number {
   return 10;
 }
 
-/** Configured llama.cpp --parallel ceiling (adi1 qwen38fn fleet). */
+/** Configured concurrency ceiling for local inference. */
 function llamaParallel(): number {
   const env = process.env["USAGE_AXI_LLAMA_PARALLEL"];
   if (env && /^\d+$/.test(env) && Number(env) > 0) return Number(env);
@@ -395,7 +395,7 @@ function llamaSlotsUrl(): string | null {
     if (value === null || value === "off") return null;
     if (typeof value === "string" && value.length > 0) return value;
   }
-  // Tailscale IP for adi1 llama-server (matches OpenCode qwen38fn baseURL).
+  // Default to llama.cpp. Configure a TensorFold endpoint such as http://adi1:8889/health.
   return "http://100.85.233.75:30000/slots";
 }
 
@@ -406,84 +406,66 @@ export type LlamaSlotReading = {
   llamaSlotFree: boolean | null;
 };
 
-/**
- * Probe llama.cpp `/slots`. Pure enough to unit-test the busy/free fold once a
- * payload is in hand; the HTTP fetch is the only I/O.
- */
+/** Fold a llama.cpp /slots array or TensorFold /health object into a slot reading. */
 export function foldLlamaSlots(
   parallel: number,
   payload: unknown,
 ): Omit<LlamaSlotReading, "llamaParallel"> {
-  if (!Array.isArray(payload) || payload.length === 0) {
-    return { llamaSlotsTotal: null, llamaSlotsBusy: null, llamaSlotFree: null };
+  if (Array.isArray(payload) && payload.length > 0) {
+    let busy = 0;
+    for (const slot of payload) {
+      if (!slot || typeof slot !== "object") continue;
+      if ((slot as { is_processing?: unknown }).is_processing === true) busy += 1;
+    }
+    return {
+      llamaSlotsTotal: payload.length,
+      llamaSlotsBusy: busy,
+      llamaSlotFree: busy < payload.length,
+    };
   }
-  let busy = 0;
-  for (const slot of payload) {
-    if (!slot || typeof slot !== "object") continue;
-    if ((slot as { is_processing?: unknown }).is_processing === true) busy += 1;
+
+  if (
+    payload && typeof payload === "object" &&
+    "backend" in payload && payload.backend === "tensorfold" &&
+    "ok" in payload && payload.ok === true &&
+    "requests_running" in payload
+  ) {
+    const busy = payload.requests_running;
+    if (typeof busy === "number" && Number.isInteger(busy) && busy >= 0) {
+      return {
+        llamaSlotsTotal: parallel,
+        llamaSlotsBusy: busy,
+        llamaSlotFree: busy < parallel,
+      };
+    }
   }
-  const total = payload.length;
-  return {
-    llamaSlotsTotal: total,
-    llamaSlotsBusy: busy,
-    llamaSlotFree: busy < total,
-  };
+
+  return { llamaSlotsTotal: null, llamaSlotsBusy: null, llamaSlotFree: null };
 }
 
 async function probeLlamaSlots(): Promise<LlamaSlotReading> {
   const parallel = llamaParallel();
+  const unreadable = { llamaParallel: parallel, ...foldLlamaSlots(parallel, null) };
   const overrideBusy = process.env["USAGE_AXI_LLAMA_SLOTS_BUSY"];
-  if (overrideBusy !== undefined) {
-    if (overrideBusy === "unknown") {
-      return {
-        llamaParallel: parallel,
-        llamaSlotsTotal: null,
-        llamaSlotsBusy: null,
-        llamaSlotFree: null,
-      };
-    }
-    if (/^\d+$/.test(overrideBusy)) {
-      const busy = Number(overrideBusy);
-      const total = parallel;
-      return {
-        llamaParallel: parallel,
-        llamaSlotsTotal: total,
-        llamaSlotsBusy: busy,
-        llamaSlotFree: busy < total,
-      };
-    }
-  }
-  const url = llamaSlotsUrl();
-  if (!url) {
+  if (overrideBusy === "unknown") return unreadable;
+  if (overrideBusy !== undefined && /^\d+$/.test(overrideBusy)) {
+    const busy = Number(overrideBusy);
     return {
       llamaParallel: parallel,
-      llamaSlotsTotal: null,
-      llamaSlotsBusy: null,
-      llamaSlotFree: null,
+      llamaSlotsTotal: parallel,
+      llamaSlotsBusy: busy,
+      llamaSlotFree: busy < parallel,
     };
   }
+  const url = llamaSlotsUrl();
+  if (!url) return unreadable;
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 1500);
-    const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(timer);
-    if (!response.ok) {
-      return {
-        llamaParallel: parallel,
-        llamaSlotsTotal: null,
-        llamaSlotsBusy: null,
-        llamaSlotFree: null,
-      };
-    }
+    const response = await fetch(url, { signal: AbortSignal.timeout(1500) });
+    if (!response.ok) return unreadable;
     const payload: unknown = await response.json();
     return { llamaParallel: parallel, ...foldLlamaSlots(parallel, payload) };
   } catch {
-    return {
-      llamaParallel: parallel,
-      llamaSlotsTotal: null,
-      llamaSlotsBusy: null,
-      llamaSlotFree: null,
-    };
+    return unreadable;
   }
 }
 

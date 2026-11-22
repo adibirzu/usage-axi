@@ -68,6 +68,11 @@ Exit codes: `0` success, `1` no provider returned data, `2` usage error.
 - `USAGE_AXI_OPENUSAGE_TIMEOUT_MS` - ceiling for a cold `openusage` read, in milliseconds.
   Defaults to `180000`. The default read is cache-first (no `--force`); this ceiling bounds the
   slow path where OpenUsage refreshes a stale cache.
+- `USAGE_AXI_LLAMA_SLOTS_URL` points to a llama.cpp `/slots` or TensorFold `/health` endpoint
+  (for example, `http://adi1:8889/health`). The config key is `llamaSlotsUrl`.
+- `USAGE_AXI_LLAMA_PARALLEL` overrides the `llamaParallel` config value (default `2`).
+  For TensorFold, set it to the server's concurrency limit. The probe reports the slot as
+  free when `requests_running` is below that limit.
 
 ## Output contract
 
