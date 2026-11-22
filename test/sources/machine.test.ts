@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   countWorkerRoots,
   foldLlamaSlots,
@@ -19,6 +19,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 afterEach(clearUsageEnv);
+afterEach(() => vi.unstubAllEnvs());
 
 describe("machine adapter", () => {
   it("honours an injected machine reading", async () => {
@@ -238,6 +239,39 @@ describe("llama slots", () => {
     expect(reading.llamaSlotFree).toBe(false);
   });
 
+  it.each([
+    { state: "idle", busy: false, running: 0, free: true },
+    { state: "busy", busy: true, running: 2, free: true },
+    { state: "saturated", busy: true, running: 4, free: false },
+    { state: "over capacity", busy: true, running: 5, free: false },
+  ])("folds a TensorFold /health payload when $state", ({ busy, running, free }) => {
+    expect(foldLlamaSlots(4, {
+      ok: true,
+      backend: "tensorfold",
+      busy,
+      requests_running: running,
+    })).toEqual({
+      llamaSlotsTotal: 4,
+      llamaSlotsBusy: running,
+      llamaSlotFree: free,
+    });
+  });
+
+  it.each([
+    { ok: true, backend: "tensorfold", busy: false },
+    ...[-1, 1.5, Infinity, NaN, "2", null].map((requests_running) => ({
+      ok: true, backend: "tensorfold", busy: false, requests_running,
+    })),
+    { ok: false, backend: "tensorfold", busy: false, requests_running: 0 },
+    { ok: true, backend: "other", busy: false, requests_running: 0 },
+  ])("returns nulls for an invalid TensorFold reading (%j)", (payload) => {
+    expect(foldLlamaSlots(4, payload)).toEqual({
+      llamaSlotsTotal: null,
+      llamaSlotsBusy: null,
+      llamaSlotFree: null,
+    });
+  });
+
   it("returns nulls for an unreadable payload", () => {
     expect(foldLlamaSlots(2, null)).toEqual({
       llamaSlotsTotal: null,
@@ -246,11 +280,12 @@ describe("llama slots", () => {
     });
   });
 
-  it("reports llamaParallel=2 from config when measuring live", async () => {
-    process.env["USAGE_AXI_LLAMA_SLOTS_BUSY"] = "0";
+  it("uses configured parallelism for the busy-count override", async () => {
+    vi.stubEnv("USAGE_AXI_LLAMA_PARALLEL", "4");
+    vi.stubEnv("USAGE_AXI_LLAMA_SLOTS_BUSY", "0");
     const machine = await measureMachine();
-    expect(machine.llamaParallel).toBe(2);
-    expect(machine.llamaSlotsTotal).toBe(2);
+    expect(machine.llamaParallel).toBe(4);
+    expect(machine.llamaSlotsTotal).toBe(4);
     expect(machine.llamaSlotsBusy).toBe(0);
     expect(machine.llamaSlotFree).toBe(true);
   });

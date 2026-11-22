@@ -157,10 +157,9 @@ export type MachineCapacity = {
   memoryFreePct: number | null;
   suiteSlotFree: boolean | null;
   /**
-   * Local llama.cpp server parallel slots (adi1 qwen38fn). `llamaParallel` is
-   * the configured ceiling (default 2); `llamaSlotsBusy` / `llamaSlotFree` come
-   * from a live `/slots` probe. Unreadable probes leave these null so callers
-   * never refuse on a missing signal.
+   * Local inference capacity from llama.cpp /slots or TensorFold /health.
+   * TensorFold uses the configured llamaParallel (default 2) as its total
+   * and requests_running as the busy count. Unreadable probes yield nulls.
    */
   llamaParallel?: number | null;
   llamaSlotsTotal?: number | null;
